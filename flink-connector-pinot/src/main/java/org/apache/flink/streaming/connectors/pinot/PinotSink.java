@@ -17,38 +17,70 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
-import org.apache.commons.lang3.NotImplementedException;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
+import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.api.connector.sink.Committer;
+import org.apache.flink.api.connector.sink.GlobalCommitter;
+import org.apache.flink.api.connector.sink.Sink;
+import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
-public class PinotSink<IN> extends RichSinkFunction<IN> {
+public class PinotSink<Row> implements Sink<Row, PinotSegmentConfig, PinotSegmentOffset, Object> {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSink.class);
 
-    public PinotSink() {
-        // TODO
+
+    private final PinotControllerConnectionFactory connectionFactory;
+    // Name of the destination table
+    private final String tableName;
+    // Serialization scheme that is used to convert input message to bytes
+    private final SerializationSchema<Row> serializationSchema;
+
+    /**
+     * Create PinotSink.
+     *
+     * @param config PinotSink configuration
+     */
+    public PinotSink(PinotSinkConfig<Row> config) {
+        this.connectionFactory = config.getConnectionFactory();
+        this.tableName = config.getTableName();
+        this.serializationSchema = config.getSerializationSchema();
     }
 
     @Override
-    public void invoke(IN input, Context context) throws Exception {
-        // TODO
-        throw new NotImplementedException("");
+    public PinotSinkWriter<Row> createWriter(InitContext initContext, List list) throws IOException {
+        throw new NotImplementedException();
     }
 
     @Override
-    public void open(Configuration parameters) throws Exception {
-        // TODO
-        throw new NotImplementedException("");
+    public Optional<Committer<PinotSegmentConfig>> createCommitter() throws IOException {
+        throw new NotImplementedException();
     }
 
     @Override
-    public void close() throws IOException {
-        // TODO
+    public Optional<GlobalCommitter<PinotSegmentConfig, Object>> createGlobalCommitter() throws IOException {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<SimpleVersionedSerializer> getCommittableSerializer() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public Optional<SimpleVersionedSerializer<Object>> getGlobalCommittableSerializer() {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<SimpleVersionedSerializer> getWriterStateSerializer() {
+        throw new NotImplementedException();
     }
 }
