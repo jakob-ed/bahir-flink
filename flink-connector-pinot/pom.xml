@@ -43,6 +43,19 @@ under the License.
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpmime</artifactId>
+            <version>4.5.13</version>
+        </dependency>
+
+        <!-- This is used to run the local Pinot -->
+        <dependency>
+            <groupId>com.spotify</groupId>
+            <artifactId>docker-client</artifactId>
+            <version>8.16.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.flink</groupId>

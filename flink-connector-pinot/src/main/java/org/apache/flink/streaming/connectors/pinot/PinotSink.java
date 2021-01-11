@@ -24,63 +24,65 @@ import org.apache.flink.api.connector.sink.Sink;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-public class PinotSink<Row> implements Sink<Row, PinotSegmentConfig, PinotSegmentOffset, Object> {
+public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriterState, Void> {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSink.class);
 
 
-    private final PinotControllerConnectionFactory connectionFactory;
+    private final String pinotControllerHostPort;
     // Name of the destination table
     private final String tableName;
     // Serialization scheme that is used to convert input message to bytes
-    private final SerializationSchema<Row> serializationSchema;
+    private final SerializationSchema<IN> serializationSchema;
 
     /**
      * Create PinotSink.
      *
      * @param config PinotSink configuration
      */
-    public PinotSink(PinotSinkConfig<Row> config) {
-        this.connectionFactory = config.getConnectionFactory();
+    public PinotSink(PinotSinkConfig<IN> config) {
+        this.pinotControllerHostPort = config.getPinotControllerHostPort();
         this.tableName = config.getTableName();
         this.serializationSchema = config.getSerializationSchema();
     }
 
     @Override
-    public PinotSinkWriter<Row> createWriter(InitContext initContext, List list) throws IOException {
-        throw new NotImplementedException();
+    public PinotSinkWriter<IN> createWriter(InitContext context, List<PinotWriterState> states) throws IOException {
+        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(context.getSubtaskId());
+        writer.initializeState(states);
+        return writer;
     }
 
     @Override
-    public Optional<Committer<PinotSegmentConfig>> createCommitter() throws IOException {
-        throw new NotImplementedException();
+    public Optional<Committer<PinotSinkCommittable>> createCommitter() throws IOException {
+        PinotSinkCommitter committer = new PinotSinkCommitter(this.pinotControllerHostPort);
+        return Optional.of(committer);
     }
 
     @Override
-    public Optional<GlobalCommitter<PinotSegmentConfig, Object>> createGlobalCommitter() throws IOException {
+    public Optional<GlobalCommitter<PinotSinkCommittable, Void>> createGlobalCommitter() throws IOException {
         return Optional.empty();
     }
 
     @Override
-    public Optional<SimpleVersionedSerializer> getCommittableSerializer() {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public Optional<SimpleVersionedSerializer<Object>> getGlobalCommittableSerializer() {
+    public Optional<SimpleVersionedSerializer<PinotSinkCommittable>> getCommittableSerializer() {
         return Optional.empty();
     }
 
     @Override
-    public Optional<SimpleVersionedSerializer> getWriterStateSerializer() {
-        throw new NotImplementedException();
+    public Optional<SimpleVersionedSerializer<Void>> getGlobalCommittableSerializer() {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<SimpleVersionedSerializer<PinotWriterState>> getWriterStateSerializer() {
+        return Optional.empty();
     }
 }

@@ -10,19 +10,19 @@ import org.apache.flink.util.Preconditions;
  */
 public class PinotSinkConfig<IN> {
 
-    private final PinotControllerConnectionFactory connectionFactory;
+    private final String pinotControllerHostPort;
     private final String tableName;
     private final SerializationSchema<IN> serializationSchema;
 
-    public PinotSinkConfig(PinotControllerConnectionFactory connectionFactory, String tableName,
+    public PinotSinkConfig(String pinotControllerHostPort, String tableName,
                            SerializationSchema<IN> serializationSchema) {
-        this.connectionFactory = Preconditions.checkNotNull(connectionFactory, "connectionFactory not set");
+        this.pinotControllerHostPort = Preconditions.checkNotNull(pinotControllerHostPort, "pinotControllerHostPort not set");
         this.tableName = Preconditions.checkNotNull(tableName, "tableName not set");
         this.serializationSchema = Preconditions.checkNotNull(serializationSchema, "serializationSchema not set");
     }
 
-    public PinotControllerConnectionFactory getConnectionFactory() {
-        return connectionFactory;
+    public String getPinotControllerHostPort() {
+        return pinotControllerHostPort;
     }
 
     public String getTableName() {
@@ -38,28 +38,28 @@ public class PinotSinkConfig<IN> {
      *
      * @param <IN> type of input messages in configured sink
      */
-    public static class PinotSinkConfigBuilder<IN> {
-        private PinotControllerConnectionFactory connectionFactory;
+    public static class Builder<IN> {
+        private String pinotControllerHostPort;
         private String tableName;
         private SerializationSchema<IN> serializationSchema;
 
-        public PinotSinkConfigBuilder<IN> setConnectionFactory(PinotControllerConnectionFactory connectionFactory) {
-            this.connectionFactory = Preconditions.checkNotNull(connectionFactory);
+        public PinotSinkConfig.Builder<IN> SetPinotControllerHostPort(String pinotControllerHostPort) {
+            this.pinotControllerHostPort = Preconditions.checkNotNull(pinotControllerHostPort);
             return this;
         }
 
-        public PinotSinkConfigBuilder<IN> setTableName(String tableName) {
+        public PinotSinkConfig.Builder<IN> setTableName(String tableName) {
             this.tableName = Preconditions.checkNotNull(tableName);
             return this;
         }
 
-        public PinotSinkConfigBuilder<IN> setSerializationSchema(SerializationSchema<IN> serializationSchema) {
+        public PinotSinkConfig.Builder<IN> setSerializationSchema(SerializationSchema<IN> serializationSchema) {
             this.serializationSchema = Preconditions.checkNotNull(serializationSchema);
             return this;
         }
 
         public PinotSinkConfig<IN> build() {
-            return new PinotSinkConfig<IN>(connectionFactory, tableName, serializationSchema);
+            return new PinotSinkConfig<IN>(pinotControllerHostPort, tableName, serializationSchema);
         }
     }
 }
