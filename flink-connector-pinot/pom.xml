@@ -43,6 +43,13 @@ under the License.
     </properties>
 
     <dependencies>
+        <!-- This is used to interact with Pinot -->
+        <dependency>
+            <groupId>org.apache.pinot</groupId>
+            <artifactId>pinot-tools</artifactId>
+            <version>${pinot.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpmime</artifactId>

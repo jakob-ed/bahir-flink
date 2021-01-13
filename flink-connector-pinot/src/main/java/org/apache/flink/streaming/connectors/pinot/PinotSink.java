@@ -22,6 +22,8 @@ import org.apache.flink.api.connector.sink.Committer;
 import org.apache.flink.api.connector.sink.GlobalCommitter;
 import org.apache.flink.api.connector.sink.Sink;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
+import org.apache.flink.streaming.connectors.pinot.serializer.PinotWriterStateSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,19 +63,19 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
     }
 
     @Override
-    public Optional<Committer<PinotSinkCommittable>> createCommitter() throws IOException {
+    public Optional<Committer<PinotSinkCommittable>> createCommitter() {
         PinotSinkCommitter committer = new PinotSinkCommitter(this.pinotControllerHostPort);
         return Optional.of(committer);
     }
 
     @Override
-    public Optional<GlobalCommitter<PinotSinkCommittable, Void>> createGlobalCommitter() throws IOException {
+    public Optional<GlobalCommitter<PinotSinkCommittable, Void>> createGlobalCommitter() {
         return Optional.empty();
     }
 
     @Override
     public Optional<SimpleVersionedSerializer<PinotSinkCommittable>> getCommittableSerializer() {
-        return Optional.empty();
+        return Optional.of(new PinotSinkCommittableSerializer());
     }
 
     @Override
@@ -83,6 +85,6 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
 
     @Override
     public Optional<SimpleVersionedSerializer<PinotWriterState>> getWriterStateSerializer() {
-        return Optional.empty();
+        return Optional.of(new PinotWriterStateSerializer());
     }
 }

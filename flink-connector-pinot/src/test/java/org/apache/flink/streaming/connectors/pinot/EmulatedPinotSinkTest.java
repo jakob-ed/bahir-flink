@@ -44,7 +44,7 @@ public class EmulatedPinotSinkTest extends PinotUnitTestBase {
     @BeforeClass
     public static void setUp() throws Exception {
         pinotHelper = getPinotHelper();
-//        pinotHelper.createTable(TABLE_NAME);
+        pinotHelper.createTable(TABLE_NAME);
     }
 
     @AfterClass
@@ -54,41 +54,41 @@ public class EmulatedPinotSinkTest extends PinotUnitTestBase {
 
     @Test
     public void testFlinkSink() throws Exception {
-//        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-//        env.setParallelism(4);
-//
-//        List<String> input =
-//                Arrays.asList(
-//                        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-//                        "Ten");
-//
-//        // Create test stream
-//        DataStream<String> theData =
-//                env.fromCollection(input)
-//                        .name("Test input")
-//                        .map((MapFunction<String, String>) StringUtils::reverse);
-//
-//        PinotSinkConfig<String> config = new PinotSinkConfig<>(getPinotControllerHostPort(), TABLE_NAME, new SimpleStringSchema());
-//
-//        // Sink into Pinot
-//        theData.sinkTo(new PinotSink<>(config))
-//                .name("Pinot sink");
-//
-//        // Run
-//        env.execute();
-//
-//        // Now get the result from Pinot and verify if everything is there
-//        List<String> entries =
-//                pinotHelper.getTableEntries(TABLE_NAME, 100);
-//
-//        assertEquals("Wrong number of elements", input.size(), entries.size());
-//
-//        // Check output strings
-//        List<String> output = new ArrayList<>();
-//        entries.forEach(entry -> output.add(entry));
-//
-//        for (String test : input) {
-//            assertTrue("Missing " + test, output.contains(StringUtils.reverse(test)));
-//        }
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(4);
+
+        List<String> input =
+                Arrays.asList(
+                        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+                        "Ten");
+
+        // Create test stream
+        DataStream<String> theData =
+                env.fromCollection(input)
+                        .name("Test input")
+                        .map((MapFunction<String, String>) StringUtils::reverse);
+
+        PinotSinkConfig<String> config = new PinotSinkConfig<>(getPinotControllerHostPort(), TABLE_NAME, new SimpleStringSchema());
+
+        // Sink into Pinot
+        theData.sinkTo(new PinotSink<>(config))
+                .name("Pinot sink");
+
+        // Run
+        env.execute();
+
+        // Now get the result from Pinot and verify if everything is there
+        List<String> entries =
+                pinotHelper.getTableEntries(TABLE_NAME, 100);
+
+        assertEquals("Wrong number of elements", input.size(), entries.size());
+
+        // Check output strings
+        List<String> output = new ArrayList<>();
+        entries.forEach(entry -> output.add(entry));
+
+        for (String test : input) {
+            assertTrue("Missing " + test, output.contains(StringUtils.reverse(test)));
+        }
     }
 }

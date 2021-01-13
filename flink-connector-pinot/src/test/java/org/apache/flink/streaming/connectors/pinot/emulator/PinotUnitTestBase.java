@@ -14,12 +14,12 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     @BeforeClass
     public static void launchPinotEmulator() throws Exception {
         // Separated out into separate class so the entire test class to be serializable
-        PinotEmulatorManager.launchDocker();
+        // PinotEmulatorManager.launchDocker();
     }
 
     @AfterClass
     public static void terminatePinotEmulator() throws DockerException, InterruptedException {
-        PinotEmulatorManager.terminateDocker();
+        // PinotEmulatorManager.terminateDocker();
     }
 
     // ====================================================================================
@@ -30,6 +30,6 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     }
 
     public static String getPinotControllerHostPort() {
-        return getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+        return "localhost:9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
     }
 }
