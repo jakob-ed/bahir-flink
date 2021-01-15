@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
+import org.codehaus.jackson.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,12 +56,14 @@ public class PinotControllerApi {
 
     protected ApiResponse delete(String path) throws IOException {
         HttpDelete httpdelete = new HttpDelete(this.controllerHostPost + path);
+        LOG.info("Sending DELETE request to {}", path);
         return this.execute(httpdelete);
     }
 
     public Schema getSchema(String tableName) throws IOException {
         Schema schema;
         ApiResponse res = this.get(String.format("/tables/%s/schema", tableName));
+        LOG.info("Get schema request for table {} returned {}", tableName, res.responseBody);
 
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
@@ -69,7 +72,7 @@ public class PinotControllerApi {
         try {
             schema = JsonUtils.stringToObject(res.responseBody, Schema.class);
         } catch (Exception e) {
-            throw new IllegalStateException("Caught exception while reading schema from Pinot Controller's response: " + res, e);
+            throw new IllegalStateException("Caught exception while reading schema from Pinot Controller's response: " + res.responseBody, e);
         }
         LOG.info("Retrieved schema: {}", schema.toSingleLineJsonString());
         return schema;
@@ -78,8 +81,11 @@ public class PinotControllerApi {
     public TableConfig getTableConfig(String tableName) throws IOException {
         TableConfig tableConfig;
         ApiResponse res = this.get(String.format("/tables/%s", tableName));
+        LOG.info("Get table config request for table {} returned {}", tableName, res.responseBody);
+
         try {
-            tableConfig = JsonUtils.stringToObject(res.responseBody, TableConfig.class);
+            String tableConfigAsJson = JsonUtils.stringToJsonNode(res.responseBody).get("OFFLINE").toString();
+            tableConfig = JsonUtils.stringToObject(tableConfigAsJson, TableConfig.class);
         } catch (Exception e) {
             throw new IllegalStateException("Caught exception while reading table config from Pinot Controller's response: " + res.responseBody, e);
         }
