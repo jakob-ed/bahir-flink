@@ -25,8 +25,12 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotUnitTestBase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.apache.pinot.spi.config.table.*;
+import org.apache.pinot.spi.data.DimensionFieldSpec;
+import org.apache.pinot.spi.data.FieldSpec;
+import org.apache.pinot.spi.data.Schema;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -37,19 +41,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class EmulatedPinotSinkTest extends PinotUnitTestBase {
-    private static final String TABLE_NAME = "FLTable";
+    private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
+    private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
+    private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
+    private static final PinotHelper pinotHelper = getPinotHelper();
 
-    private static PinotHelper pinotHelper;
-
-    @BeforeClass
-    public static void setUp() throws Exception {
-        pinotHelper = getPinotHelper();
-        pinotHelper.createTable(TABLE_NAME);
+    @BeforeEach
+    public void beforeEach() throws Exception {
+        pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
-    @AfterClass
-    public static void tearDown() throws Exception {
-         pinotHelper.deleteTable(TABLE_NAME);
+    @AfterEach
+    public void afterEach() throws Exception {
+        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
     @Test
@@ -89,6 +93,57 @@ public class EmulatedPinotSinkTest extends PinotUnitTestBase {
 
         for (String test : input) {
             assertTrue("Missing " + test, output.contains(StringUtils.reverse(test)));
+        }
+    }
+
+    static class PinotTableConfig {
+
+        static final String TABLE_NAME = "FLTable";
+        static final String SCHEMA_NAME = "FLTableSchema";
+
+        private static SegmentsValidationAndRetentionConfig getValidationConfig() {
+            SegmentsValidationAndRetentionConfig validationConfig = new SegmentsValidationAndRetentionConfig();
+            validationConfig.setSegmentAssignmentStrategy("BalanceNumSegmentAssignmentStrategy");
+            validationConfig.setSegmentPushType("APPEND");
+            validationConfig.setSchemaName(SCHEMA_NAME);
+            validationConfig.setReplication("1");
+            return validationConfig;
+        }
+
+        private static TenantConfig getTenantConfig() {
+            TenantConfig tenantConfig = new TenantConfig("DefaultTenant", "DefaultTenant", null);
+            return tenantConfig;
+        }
+
+        private static IndexingConfig getIndexingConfig() {
+            IndexingConfig indexingConfig = new IndexingConfig();
+            return indexingConfig;
+        }
+
+        private static TableCustomConfig getCustomConfig() {
+            TableCustomConfig customConfig = new TableCustomConfig(null);
+            ;
+            return customConfig;
+        }
+
+        static TableConfig getTableConfig() {
+            return new TableConfig(
+                    TABLE_NAME,
+                    TableType.OFFLINE.name(),
+                    getValidationConfig(),
+                    getTenantConfig(),
+                    getIndexingConfig(),
+                    getCustomConfig(),
+                    null, null, null, null, null,
+                    null, null, null, null
+            );
+        }
+
+        static Schema getTableSchema() {
+            Schema schema = new Schema();
+            schema.setSchemaName(SCHEMA_NAME);
+            schema.addField(new DimensionFieldSpec("col1", FieldSpec.DataType.STRING, true));
+            return schema;
         }
     }
 }

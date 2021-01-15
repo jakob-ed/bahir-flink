@@ -30,6 +30,6 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     }
 
     public static String getPinotControllerHostPort() {
-        return "localhost:9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+        return "http://127.0.0.1:9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
     }
 }

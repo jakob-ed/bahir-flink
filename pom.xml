@@ -235,7 +235,10 @@
                         io.netty:netty and io.netty:netty-all.
                       -->
                       <exclude>org.jboss.netty</exclude>
-                      <exclude>org.codehaus.groovy</exclude>
+                      <!--
+                        TODO: Figure out a workaround
+                      -->
+                      <!--<exclude>org.codehaus.groovy</exclude>-->
                     </excludes>
                     <searchTransitive>true</searchTransitive>
                   </bannedDependencies>
