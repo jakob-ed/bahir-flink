@@ -26,10 +26,14 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     // Pinot helpers
 
     public static PinotHelper getPinotHelper() {
-        return new PinotHelper(getPinotControllerHostPort());
+        return new PinotHelper(getPinotControllerHost(), getPinotControllerPort());
     }
 
-    public static String getPinotControllerHostPort() {
-        return "http://127.0.0.1:9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+    public static String getPinotControllerHost() {
+        return "127.0.0.1"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+    }
+
+    public static String getPinotControllerPort() {
+        return "9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
     }
 }

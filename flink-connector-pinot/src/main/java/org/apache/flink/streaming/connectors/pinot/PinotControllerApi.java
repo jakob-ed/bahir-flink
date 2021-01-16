@@ -1,30 +1,36 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
+import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
-import org.codehaus.jackson.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
+
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotControllerApi {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerApi.class);
-    protected final String controllerHostPost;
+    protected final String controllerHostPort;
 
-    public PinotControllerApi(String controllerHostPost) {
-        this.controllerHostPost = controllerHostPost;
+    public PinotControllerApi(String controllerHost, String controllerPort) {
+        checkNotNull(controllerHost);
+        checkNotNull(controllerPort);
+        this.controllerHostPort = String.format("http://%s:%s", controllerHost, controllerPort);
     }
 
     private ApiResponse execute(HttpRequestBase request) throws IOException {
@@ -42,20 +48,27 @@ public class PinotControllerApi {
     }
 
     protected ApiResponse post(String path, String body) throws IOException {
-        HttpPost httppost = new HttpPost(this.controllerHostPost + path);
+        HttpPost httppost = new HttpPost(this.controllerHostPort + path);
         httppost.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
         LOG.info("Posting string entity {} to {}", body, path);
         return this.execute(httppost);
     }
 
+    protected ApiResponse post(String path, HttpEntity entity) throws IOException {
+        HttpPost httppost = new HttpPost(this.controllerHostPort + path);
+        httppost.setEntity(entity);
+        LOG.info("Posting {} entity to {}", entity.getContentType(), path);
+        return this.execute(httppost);
+    }
+
     protected ApiResponse get(String path) throws IOException {
-        HttpGet httpget = new HttpGet(this.controllerHostPost + path);
+        HttpGet httpget = new HttpGet(this.controllerHostPort + path);
         LOG.info("Sending GET request to {}", path);
         return this.execute(httpget);
     }
 
     protected ApiResponse delete(String path) throws IOException {
-        HttpDelete httpdelete = new HttpDelete(this.controllerHostPost + path);
+        HttpDelete httpdelete = new HttpDelete(this.controllerHostPort + path);
         LOG.info("Sending DELETE request to {}", path);
         return this.execute(httpdelete);
     }
@@ -91,6 +104,13 @@ public class PinotControllerApi {
         }
         LOG.info("Retrieved table config: {}", tableConfig.toJsonString());
         return tableConfig;
+    }
+
+    public ApiResponse uploadSegment(File segmentFile) throws IOException {
+        MultipartEntityBuilder mb = MultipartEntityBuilder.create();
+        mb.addBinaryBody("file", segmentFile);
+        HttpEntity httpEntity = mb.build();
+        return this.post("/v2/segments", httpEntity);
     }
 
     public List<String> getTableEntries(String tableName, int maxNumberOfEntries) {

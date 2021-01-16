@@ -43,10 +43,16 @@ under the License.
     </properties>
 
     <dependencies>
-        <!-- This is used to interact with Pinot -->
+        <!-- This is used to interact with Pinot Controller -->
         <dependency>
             <groupId>org.apache.pinot</groupId>
             <artifactId>pinot-tools</artifactId>
+            <version>${pinot.version}</version>
+        </dependency>
+        <!-- This is used to interact with Pinot Broker -->
+        <dependency>
+            <groupId>org.apache.pinot</groupId>
+            <artifactId>pinot-java-client</artifactId>
             <version>${pinot.version}</version>
         </dependency>
 

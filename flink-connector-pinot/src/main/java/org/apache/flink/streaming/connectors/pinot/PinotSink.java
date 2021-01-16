@@ -17,21 +17,20 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
-import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.connector.sink.Committer;
 import org.apache.flink.api.connector.sink.GlobalCommitter;
 import org.apache.flink.api.connector.sink.Sink;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotWriterStateSerializer;
-import org.apache.pinot.spi.config.table.TableConfig;
-import org.apache.pinot.spi.data.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriterState, Void> {
 
@@ -40,40 +39,34 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
     private static final Logger LOG = LoggerFactory.getLogger(PinotSink.class);
 
 
-    private final String pinotControllerHostPort;
+    private final String pinotControllerHost;
+    private final String pinotControllerPort;
     // Name of the destination table
     private final String tableName;
-    // Serialization scheme that is used to convert input message to bytes
-    private final SerializationSchema<IN> serializationSchema;
-
-    private final Schema tableSchema;
-    private final TableConfig tableConfig;
 
     /**
      * Create PinotSink.
      *
-     * @param config PinotSink configuration
+     * @param pinotControllerHost
+     * @param pinotControllerPort
+     * @param tableName
      */
-    public PinotSink(PinotSinkConfig<IN> config) throws IOException {
-        this.pinotControllerHostPort = config.getPinotControllerHostPort();
-        this.tableName = config.getTableName();
-        this.serializationSchema = config.getSerializationSchema();
-
-        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHostPort);
-        this.tableSchema = controllerApi.getSchema(this.tableName);
-        this.tableConfig = controllerApi.getTableConfig(this.tableName);
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName) throws IOException {
+        this.pinotControllerHost = checkNotNull(pinotControllerHost);
+        this.pinotControllerPort = checkNotNull(pinotControllerPort);
+        this.tableName = tableName;
     }
 
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<PinotWriterState> states) throws IOException {
-        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(context.getSubtaskId(), this.tableSchema, this.tableConfig, this.serializationSchema);
+        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(context.getSubtaskId(), this.pinotControllerHost, this.pinotControllerPort, this.tableName);
         writer.initializeState(states);
         return writer;
     }
 
     @Override
     public Optional<Committer<PinotSinkCommittable>> createCommitter() {
-        PinotSinkCommitter committer = new PinotSinkCommitter(this.pinotControllerHostPort);
+        PinotSinkCommitter committer = new PinotSinkCommitter(this.pinotControllerHost, this.pinotControllerPort);
         return Optional.of(committer);
     }
 

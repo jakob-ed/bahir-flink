@@ -18,13 +18,17 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotUnitTestBase;
+import org.apache.pinot.client.ResultSet;
+import org.apache.pinot.spi.config.BaseJsonConfig;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -34,13 +38,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class EmulatedPinotSinkTest extends PinotUnitTestBase {
+public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
     private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
     private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
@@ -59,40 +65,60 @@ public class EmulatedPinotSinkTest extends PinotUnitTestBase {
     @Test
     public void testFlinkSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(4);
+        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.enableCheckpointing(10, CheckpointingMode.EXACTLY_ONCE);
+        env.setParallelism(1);
 
-        List<String> input =
-                Arrays.asList(
+        List<SingleColumnTableRow> input =
+                Stream.of(
                         "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                        "Ten");
+                        "Ten")
+                        .map(SingleColumnTableRow::new)
+                        .collect(Collectors.toList());
 
         // Create test stream
-        DataStream<String> theData =
+        DataStream<SingleColumnTableRow> theData =
                 env.fromCollection(input)
-                        .name("Test input")
-                        .map((MapFunction<String, String>) StringUtils::reverse);
-
-        PinotSinkConfig<String> config = new PinotSinkConfig<>(getPinotControllerHostPort(), TABLE_NAME, new SimpleStringSchema());
+                        .name("Test input");
+//                        .map((MapFunction<SingleColumnTableRow, String>) StringUtils::reverse);
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(config))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME))
                 .name("Pinot sink");
 
         // Run
         env.execute();
 
         // Now get the result from Pinot and verify if everything is there
-        List<String> entries =
-                pinotHelper.getTableEntries(TABLE_NAME, 100);
+        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME);
 
-        assertEquals("Wrong number of elements", input.size(), entries.size());
+        assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
 
         // Check output strings
-        List<String> output = new ArrayList<>();
-        entries.forEach(entry -> output.add(entry));
+        List<String> output = IntStream.range(0, resultSet.getColumnCount())
+                .mapToObj(i -> resultSet.getString(i, 0))
+                .collect(Collectors.toList());
 
-        for (String test : input) {
-            assertTrue("Missing " + test, output.contains(StringUtils.reverse(test)));
+        for (SingleColumnTableRow test : input) {
+            assertTrue("Missing " + test.getCol1(), output.contains(test.getCol1()));
+        }
+    }
+
+    static class SingleColumnTableRow extends BaseJsonConfig {
+
+        private String _col1;
+
+        public SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1) {
+            this._col1 = col1;
+        }
+
+        @JsonProperty("col1")
+        public String getCol1() {
+            return this._col1;
+        }
+
+        public void setCol1(String _col1) {
+            this._col1 = _col1;
         }
     }
 
