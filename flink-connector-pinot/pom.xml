@@ -19,109 +19,109 @@ under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
-    <modelVersion>4.0.0</modelVersion>
+  <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>org.apache.bahir</groupId>
-        <artifactId>bahir-flink-parent_2.11</artifactId>
-        <version>1.1-SNAPSHOT</version>
-        <relativePath>..</relativePath>
-    </parent>
+  <parent>
+    <groupId>org.apache.bahir</groupId>
+    <artifactId>bahir-flink-parent_2.11</artifactId>
+    <version>1.1-SNAPSHOT</version>
+    <relativePath>..</relativePath>
+  </parent>
 
-    <artifactId>flink-connector-pinot_2.11</artifactId>
-    <name>flink-connector-pinot</name>
-
-
-    <packaging>jar</packaging>
-
-    <!-- Allow users to pass custom connector versions -->
-    <properties>
-        <pinot.version>0.6.0</pinot.version>
-
-        <!-- Flink version -->
-        <flink.version>1.12.0</flink.version>
-    </properties>
-
-    <dependencies>
-        <!-- This is used to interact with Pinot Controller -->
-        <dependency>
-            <groupId>org.apache.pinot</groupId>
-            <artifactId>pinot-tools</artifactId>
-            <version>${pinot.version}</version>
-        </dependency>
-        <!-- This is used to interact with Pinot Broker -->
-        <dependency>
-            <groupId>org.apache.pinot</groupId>
-            <artifactId>pinot-java-client</artifactId>
-            <version>${pinot.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpmime</artifactId>
-            <version>4.5.13</version>
-        </dependency>
-
-        <!-- This is used to run the local Pinot -->
-        <dependency>
-            <groupId>com.spotify</groupId>
-            <artifactId>docker-client</artifactId>
-            <version>8.16.0</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
+  <artifactId>flink-connector-pinot_2.11</artifactId>
+  <name>flink-connector-pinot</name>
 
 
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
+  <packaging>jar</packaging>
 
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-test-utils_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-            <scope>test</scope>
-        </dependency>
+  <!-- Allow users to pass custom connector versions -->
+  <properties>
+    <pinot.version>0.6.0</pinot.version>
 
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-tests</artifactId>
-            <version>${flink.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
+    <!-- Flink version -->
+    <flink.version>1.12.0</flink.version>
+  </properties>
 
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-runtime_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
+  <dependencies>
+    <!-- This is used to interact with Pinot Controller -->
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-tools</artifactId>
+      <version>${pinot.version}</version>
+    </dependency>
+    <!-- This is used to interact with Pinot Broker -->
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-java-client</artifactId>
+      <version>${pinot.version}</version>
+    </dependency>
 
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-module-junit4</artifactId>
-            <version>1.5.5</version>
-            <scope>test</scope>
-        </dependency>
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpmime</artifactId>
+      <version>4.5.13</version>
+    </dependency>
 
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-api-mockito</artifactId>
-            <version>1.5.5</version>
-            <scope>test</scope>
-        </dependency>
+    <!-- This is used to run the local Pinot -->
+    <dependency>
+      <groupId>com.spotify</groupId>
+      <artifactId>docker-client</artifactId>
+      <version>8.16.0</version>
+      <scope>test</scope>
+    </dependency>
 
-    </dependencies>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+
+
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+      <version>${flink.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-test-utils_${scala.binary.version}</artifactId>
+      <version>${flink.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-tests</artifactId>
+      <version>${flink.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-runtime_${scala.binary.version}</artifactId>
+      <version>${flink.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-module-junit4</artifactId>
+      <version>1.5.5</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-api-mockito</artifactId>
+      <version>1.5.5</version>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
 
 </project>
