@@ -31,6 +31,7 @@ import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.data.readers.FileFormat;
 import org.apache.pinot.spi.data.readers.RecordReaderConfig;
 import org.apache.pinot.spi.utils.JsonUtils;
+import org.apache.pinot.tools.admin.command.UploadSegmentCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +51,8 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
-    private final Integer subtaskId;
-    private Integer latestSegmentId = -1;
+    private final int subtaskId;
+    private int latestSegmentId = -1;
 
     private final String pinotControllerHost;
     private final String pinotControllerPort;
@@ -60,7 +61,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
     private List<IN> rows;
 
-    public PinotSinkWriter(Integer subtaskId, String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment) throws IOException {
+    public PinotSinkWriter(int subtaskId, String pinotControllerHost, String pinotControllerPort, String tableName, int rowsPerSegment) throws IOException {
         this.subtaskId = checkNotNull(subtaskId);
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
@@ -75,7 +76,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
         // TODO: we need to move this to disk, to prevent a large memory footprint
         this.rows.add(element);
 
-        LOG.info("Added element to local storage. Size is now {}", this.rows.size());
+        LOG.info("Added element to local storage. Size is now {} [subtaskId={}]", this.rows.size(), this.subtaskId);
 
         if (this.rows.size() >= this.rowsPerSegment) {
             this.latestSegmentId = Helper.commitSegment(this);
@@ -92,6 +93,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
     public void initializeState(List<PinotWriterState> states) {
         this.latestSegmentId = states.stream()
+                .filter(state -> state.latestCommittedSegmentId == this.subtaskId)
                 .mapToInt(state -> state.latestCommittedSegmentId)
                 .max().orElseGet(() -> -1);
     }
@@ -133,7 +135,11 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
 
             try {
-                PinotSinkCommitter.Helper.uploadSegment(instance.pinotControllerHost, instance.pinotControllerPort, segmentFile);
+                UploadSegmentCommand cmd = new UploadSegmentCommand();
+                cmd.setControllerHost(instance.pinotControllerHost);
+                cmd.setControllerPort(instance.pinotControllerPort);
+                cmd.setSegmentDir(segmentFile.getAbsolutePath());
+                cmd.execute();
             } catch (Exception e) {
                 LOG.info("Could not upload segment {}", segmentFile.toPath(), e);
                 throw new IOException(e.getMessage());

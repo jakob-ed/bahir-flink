@@ -19,11 +19,9 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.api.connector.sink.Committer;
-import org.apache.pinot.tools.admin.command.UploadSegmentCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,11 +44,7 @@ public class PinotSinkCommitter implements Committer<PinotSinkCommittable> {
     public List<PinotSinkCommittable> commit(List<PinotSinkCommittable> committables) throws IOException {
         List<PinotSinkCommittable> failedCommits = new ArrayList<>();
         for (PinotSinkCommittable committable : committables) {
-            try {
-                Helper.uploadSegment(this.pinotControllerHost, this.pinotControllerPort, committable.getFile());
-                LOG.info("Successfully uploaded segment at {}", committable.getFile());
-            } catch (Exception e) {
-                LOG.info("Could not upload segment {}", committable.getFile().toPath(), e);
+            if (!Helper.segmentIsPresent(this.pinotControllerHost, this.pinotControllerPort, committable)) {
                 failedCommits.add(committable);
             }
         }
@@ -64,13 +58,9 @@ public class PinotSinkCommitter implements Committer<PinotSinkCommittable> {
 
     static class Helper {
 
-        public static void uploadSegment(String controllerHost, String controllerPort, File segmentDir) throws Exception {
-            UploadSegmentCommand cmd = new UploadSegmentCommand();
-            cmd.setControllerHost(controllerHost);
-            cmd.setControllerPort(controllerPort);
-            cmd.setSegmentDir(segmentDir.getAbsolutePath());
-
-            cmd.execute();
+        public static boolean segmentIsPresent(String controllerHost, String controllerPort, PinotSinkCommittable committable) throws IOException {
+            // TODO: check whether segment with subtaskId and lastSegmentId were committed
+            return true;
         }
     }
 }

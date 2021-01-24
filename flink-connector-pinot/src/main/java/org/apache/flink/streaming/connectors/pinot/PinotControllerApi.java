@@ -24,7 +24,6 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -34,9 +33,7 @@ import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -122,17 +119,6 @@ public class PinotControllerApi {
         }
         LOG.info("Retrieved table config: {}", tableConfig.toJsonString());
         return tableConfig;
-    }
-
-    public ApiResponse uploadSegment(File segmentFile) throws IOException {
-        MultipartEntityBuilder mb = MultipartEntityBuilder.create();
-        mb.addBinaryBody("file", segmentFile);
-        HttpEntity httpEntity = mb.build();
-        return this.post("/v2/segments", httpEntity);
-    }
-
-    public List<String> getTableEntries(String tableName, int maxNumberOfEntries) {
-        return null;
     }
 
     protected class ApiResponse {

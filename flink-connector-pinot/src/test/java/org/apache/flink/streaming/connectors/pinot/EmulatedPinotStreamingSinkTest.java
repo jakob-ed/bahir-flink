@@ -66,12 +66,12 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
         // env.enableCheckpointing(10, CheckpointingMode.EXACTLY_ONCE);
-        env.setParallelism(1);
+        env.setParallelism(3);
 
         List<SingleColumnTableRow> input =
                 Stream.of(
                         "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                        "Ten")
+                        "Ten", "Eleven", "Twelve")
                         .map(SingleColumnTableRow::new)
                         .collect(Collectors.toList());
 
@@ -90,7 +90,7 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
         TimeUnit.MILLISECONDS.sleep(500);
 
         // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME);
+        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
 
         assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
 

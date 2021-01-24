@@ -18,20 +18,24 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
-import java.io.File;
 import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkCommittable implements Serializable {
-    private final String segmentFilePath;
+    private final Integer subtaskId;
+    private final Integer lastSegmentId;
 
-    public PinotSinkCommittable(String segmentFilePath) {
-        checkNotNull(segmentFilePath);
-        this.segmentFilePath = segmentFilePath;
+    public PinotSinkCommittable(Integer subtaskId, Integer lastSegmentId) {
+        this.subtaskId = checkNotNull(subtaskId);
+        this.lastSegmentId = checkNotNull(lastSegmentId);
     }
 
-    public File getFile() {
-        return new File(segmentFilePath);
+    public Integer getLastSegmentId() {
+        return lastSegmentId;
+    }
+
+    public Integer getSubtaskId() {
+        return subtaskId;
     }
 }

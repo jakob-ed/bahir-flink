@@ -99,13 +99,11 @@ public class PinotHelper extends PinotControllerApi {
         return brokers;
     }
 
-    public ResultSet getTableEntries(String tableName) throws IOException {
-        // String[] brokers = new String[]{"localhost:8000"}; //this.getBrokers(tableName).toArray(new String[0]);
+    public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws IOException {
         Connection pinotConnection = ConnectionFactory.fromHostList("localhost:8000");
 
-        String query = String.format("SELECT * FROM %s", tableName);
+        String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);
 
-        // set queryType=sql for querying the sql endpoint
         Request pinotClientRequest = new Request("sql", query);
         ResultSetGroup pinotResultSetGroup = pinotConnection.execute(pinotClientRequest);
         return pinotResultSetGroup.getResultSet(0);
