@@ -16,17 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot.emulator;
+package org.apache.flink.streaming.connectors.pinot;
 
 import com.spotify.docker.client.exceptions.DockerException;
+import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.util.TestLogger;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
 
 import java.io.Serializable;
-
-import static org.apache.flink.streaming.connectors.pinot.emulator.PinotEmulatorManager.getDockerIpAddress;
-import static org.apache.flink.streaming.connectors.pinot.emulator.PinotEmulatorManager.getDockerPinotControllerPort;
 
 public class PinotUnitTestBase extends TestLogger implements Serializable {
     @BeforeClass
@@ -35,7 +33,7 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
         // PinotEmulatorManager.launchDocker();
     }
 
-    @AfterClass
+    @AfterAll
     public static void terminatePinotEmulator() throws DockerException, InterruptedException {
         // PinotEmulatorManager.terminateDocker();
     }
@@ -48,10 +46,12 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     }
 
     public static String getPinotControllerHost() {
-        return "127.0.0.1"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+        return "127.0.0.1";
+        // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
     }
 
     public static String getPinotControllerPort() {
-        return "9000"; // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+        return "9000";
+        // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
     }
 }

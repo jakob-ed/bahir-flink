@@ -43,6 +43,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
     private final String pinotControllerPort;
     // Name of the destination table
     private final String tableName;
+    private final Integer rowsPerSegment;
 
     /**
      * Create PinotSink.
@@ -51,15 +52,16 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
      * @param pinotControllerPort
      * @param tableName
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName) throws IOException {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment) throws IOException {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = tableName;
+        this.rowsPerSegment = rowsPerSegment;
     }
 
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<PinotWriterState> states) throws IOException {
-        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(context.getSubtaskId(), this.pinotControllerHost, this.pinotControllerPort, this.tableName);
+        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(context.getSubtaskId(), this.pinotControllerHost, this.pinotControllerPort, this.tableName, this.rowsPerSegment);
         writer.initializeState(states);
         return writer;
     }

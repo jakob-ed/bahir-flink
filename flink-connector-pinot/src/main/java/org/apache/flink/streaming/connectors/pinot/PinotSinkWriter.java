@@ -51,19 +51,21 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
     private final Integer subtaskId;
-    private Integer latestCommittedId = -1;
+    private Integer latestSegmentId = -1;
 
     private final String pinotControllerHost;
     private final String pinotControllerPort;
     private final String tableName;
+    private final Integer rowsPerSegment;
 
     private List<IN> rows;
 
-    public PinotSinkWriter(Integer subtaskId, String pinotControllerHost, String pinotControllerPort, String tableName) throws IOException {
+    public PinotSinkWriter(Integer subtaskId, String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment) throws IOException {
         this.subtaskId = checkNotNull(subtaskId);
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
+        this.rowsPerSegment = checkNotNull(rowsPerSegment);
 
         this.rows = new ArrayList<>();
     }
@@ -72,43 +74,31 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     public void write(IN element, Context context) throws IOException {
         // TODO: we need to move this to disk, to prevent a large memory footprint
         this.rows.add(element);
+
+        LOG.info("Added element to local storage. Size is now {}", this.rows.size());
+
+        if (this.rows.size() >= this.rowsPerSegment) {
+            this.latestSegmentId = Helper.commitSegment(this);
+            LOG.info("Reset local cache [subtaskId={}]", this.subtaskId);
+            this.rows = new ArrayList<>();
+        }
     }
 
     @Override
     public List<PinotSinkCommittable> prepareCommit(boolean b) throws IOException {
-        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
-        Schema tableSchema = controllerApi.getSchema(this.tableName);
-        TableConfig tableConfig = controllerApi.getTableConfig(this.tableName);
-
-        String commitHash = UUID.randomUUID().toString();
-        String pathPrefix = Helper.getPathPrefix(this, this.subtaskId, commitHash);
-        LOG.info("Using path '{}' for storing committables", pathPrefix);
-
-        // Stores row items in JSON format on disk
-        File dataFile = new File(pathPrefix + "data.json");
-        if (new File(pathPrefix).mkdirs()) {
-            LOG.info("Successfully created directories for {} [subtaskId={}]", dataFile.toPath(), this.subtaskId);
-        }
-        Helper.writeToFile(dataFile, this.rows);
-
-        // Generate and store segment
-        File segmentFile = new File(pathPrefix + "segment");
-        Helper.generateSegment(dataFile, segmentFile, FileFormat.JSON, null, tableConfig, tableSchema, true);
-
-        // Submit path to segment as committable
-        PinotSinkCommittable committable = new PinotSinkCommittable(segmentFile.getPath());
-        return Collections.singletonList(committable);
+        // TODO
+        return new ArrayList<>();
     }
 
     public void initializeState(List<PinotWriterState> states) {
-        this.latestCommittedId = states.stream()
+        this.latestSegmentId = states.stream()
                 .mapToInt(state -> state.latestCommittedSegmentId)
                 .max().orElseGet(() -> -1);
     }
 
     @Override
     public List<PinotWriterState> snapshotState() throws IOException {
-        PinotWriterState state = new PinotWriterState(this.latestCommittedId);
+        PinotWriterState state = new PinotWriterState(this.latestSegmentId);
         return Collections.singletonList(state);
     }
 
@@ -118,6 +108,41 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     }
 
     static class Helper {
+
+        public static <IN> Integer commitSegment(PinotSinkWriter<IN> instance) throws IOException {
+            PinotControllerApi controllerApi = new PinotControllerApi(instance.pinotControllerHost, instance.pinotControllerPort);
+            Schema tableSchema = controllerApi.getSchema(instance.tableName);
+            TableConfig tableConfig = controllerApi.getTableConfig(instance.tableName);
+
+            String commitHash = UUID.randomUUID().toString();
+            String pathPrefix = Helper.getPathPrefix(instance, instance.subtaskId, commitHash);
+            LOG.info("Using path '{}' for storing committables", pathPrefix);
+
+            // Stores row items in JSON format on disk
+            File dataFile = new File(pathPrefix + "data.json");
+            if (new File(pathPrefix).mkdirs()) {
+                LOG.info("Successfully created directories for {} [subtaskId={}]", dataFile.toPath(), instance.subtaskId);
+            }
+            Helper.writeToFile(dataFile, instance.rows);
+
+            // Generate and store segment
+            File segmentFile = new File(pathPrefix + "segment");
+            Integer segmentId = instance.latestSegmentId + 1;
+            String segmentName = String.format("%s_%d-%d", instance.tableName, instance.subtaskId, segmentId);
+            Helper.generateSegment(segmentName, dataFile, segmentFile, FileFormat.JSON, null, tableConfig, tableSchema, true);
+
+
+            try {
+                PinotSinkCommitter.Helper.uploadSegment(instance.pinotControllerHost, instance.pinotControllerPort, segmentFile);
+            } catch (Exception e) {
+                LOG.info("Could not upload segment {}", segmentFile.toPath(), e);
+                throw new IOException(e.getMessage());
+            }
+
+            LOG.info("Successfully uploaded segment at {}", segmentFile);
+            return segmentId;
+        }
+
         /**
          * @param instance
          * @param subtaskId
@@ -162,8 +187,9 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
          * @param schema
          * @param _postCreationVerification
          */
-        public static void generateSegment(File dataFile, File outDir, FileFormat _format, RecordReaderConfig recordReaderConfig, TableConfig tableConfig, Schema schema, Boolean _postCreationVerification) {
+        public static void generateSegment(String segmentName, File dataFile, File outDir, FileFormat _format, RecordReaderConfig recordReaderConfig, TableConfig tableConfig, Schema schema, Boolean _postCreationVerification) {
             SegmentGeneratorConfig segmentGeneratorConfig = new SegmentGeneratorConfig(tableConfig, schema);
+            segmentGeneratorConfig.setSegmentName(segmentName);
             segmentGeneratorConfig.setInputFilePath(dataFile.getPath());
             segmentGeneratorConfig.setFormat(_format);
             segmentGeneratorConfig.setOutDir(outDir.getPath());
@@ -174,7 +200,6 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
                 SegmentIndexCreationDriver driver = new SegmentIndexCreationDriverImpl();
                 driver.init(segmentGeneratorConfig);
                 driver.build();
-                String segmentName = driver.getSegmentName();
                 File indexDir = new File(outDir, segmentName);
                 LOG.info("Successfully created segment: {} at directory: {}", segmentName, indexDir);
                 if (_postCreationVerification) {

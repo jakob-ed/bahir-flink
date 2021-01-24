@@ -19,7 +19,6 @@
 package org.apache.flink.streaming.connectors.pinot.serializer;
 
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.streaming.connectors.pinot.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.PinotWriterState;
 
 import java.io.IOException;

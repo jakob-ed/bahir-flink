@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -77,8 +78,7 @@ public class PinotEmulatorManager {
     public static void launchDocker()
             throws DockerException, InterruptedException, DockerCertificateException {
         // Create a client based on DOCKER_HOST and DOCKER_CERT_PATH env vars
-        docker = DefaultDockerClient.fromEnv().build();
-
+        docker = checkNotNull(DefaultDockerClient.fromEnv().build(), "Error while initializing Docker client");
         terminateAndDiscardAnyExistingContainers(true);
 
         LOG.info("");

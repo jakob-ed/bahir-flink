@@ -19,14 +19,10 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.RuntimeExecutionMode;
-import org.apache.flink.api.common.serialization.SerializationSchema;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
-import org.apache.flink.streaming.connectors.pinot.emulator.PinotUnitTestBase;
 import org.apache.pinot.client.ResultSet;
 import org.apache.pinot.spi.config.BaseJsonConfig;
 import org.apache.pinot.spi.config.table.*;
@@ -37,8 +33,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -54,19 +50,22 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
 
     @BeforeEach
     public void beforeEach() throws Exception {
+        // PinotEmulatorManager.launchDocker();
+        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
         pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
+        // TODO: docker run --network=pinot-demo --name pinot-quickstart -p 9000:9000 -p 8000:8000 -d apachepinot/pinot:latest QuickStart -type batch
     }
 
     @AfterEach
     public void afterEach() throws Exception {
-        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
+        // pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
     @Test
     public void testFlinkSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        env.enableCheckpointing(10, CheckpointingMode.EXACTLY_ONCE);
+        // env.enableCheckpointing(10, CheckpointingMode.EXACTLY_ONCE);
         env.setParallelism(1);
 
         List<SingleColumnTableRow> input =
@@ -80,14 +79,15 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
         DataStream<SingleColumnTableRow> theData =
                 env.fromCollection(input)
                         .name("Test input");
-//                        .map((MapFunction<SingleColumnTableRow, String>) StringUtils::reverse);
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 2))
                 .name("Pinot sink");
 
         // Run
         env.execute();
+
+        TimeUnit.MILLISECONDS.sleep(500);
 
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME);
@@ -95,7 +95,7 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
         assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
 
         // Check output strings
-        List<String> output = IntStream.range(0, resultSet.getColumnCount())
+        List<String> output = IntStream.range(0, resultSet.getRowCount())
                 .mapToObj(i -> resultSet.getString(i, 0))
                 .collect(Collectors.toList());
 
@@ -108,7 +108,7 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
 
         private String _col1;
 
-        public SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1) {
+        SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1) {
             this._col1 = col1;
         }
 

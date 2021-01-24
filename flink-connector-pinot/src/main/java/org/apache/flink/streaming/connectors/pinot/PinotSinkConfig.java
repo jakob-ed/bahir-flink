@@ -61,7 +61,7 @@ public class PinotSinkConfig<IN> {
         private String tableName;
         private SerializationSchema<IN> serializationSchema;
 
-        public PinotSinkConfig.Builder<IN> SetPinotControllerHostPort(String pinotControllerHostPort) {
+        public PinotSinkConfig.Builder<IN> setPinotControllerHostPort(String pinotControllerHostPort) {
             this.pinotControllerHostPort = Preconditions.checkNotNull(pinotControllerHostPort);
             return this;
         }

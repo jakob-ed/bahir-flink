@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 public class PinotHelper extends PinotControllerApi {
@@ -80,10 +81,27 @@ public class PinotHelper extends PinotControllerApi {
         this.deleteSchema(tableSchema);
     }
 
-    public ResultSet getTableEntries(String tableName) {
-        String zkUrl = "localhost:2181";
-        String pinotClusterName = "PinotCluster";
-        Connection pinotConnection = ConnectionFactory.fromZookeeper(zkUrl + "/" + pinotClusterName);
+    private List<String> getBrokers(String tableName) throws IOException {
+        ApiResponse res = this.get(String.format("/brokers/tables/%s", tableName));
+        LOG.info("Get broker request for table {} returned {}", tableName, res.responseBody);
+        if (res.statusLine.getStatusCode() != 200) {
+            throw new PinotControllerApiException(res.responseBody);
+        }
+
+        List<String> brokers;
+        try {
+            brokers = Arrays.asList(JsonUtils.stringToObject(res.responseBody, String[].class));
+        } catch (Exception e) {
+            throw new IllegalStateException("Caught exception while reading brokers from Pinot Controller's response: " + res.responseBody, e);
+        }
+        LOG.info("Retrieved brokers: {}", brokers);
+
+        return brokers;
+    }
+
+    public ResultSet getTableEntries(String tableName) throws IOException {
+        // String[] brokers = new String[]{"localhost:8000"}; //this.getBrokers(tableName).toArray(new String[0]);
+        Connection pinotConnection = ConnectionFactory.fromHostList("localhost:8000");
 
         String query = String.format("SELECT * FROM %s", tableName);
 
