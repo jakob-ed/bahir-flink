@@ -20,7 +20,7 @@ package org.apache.flink.streaming.connectors.pinot.serializer;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.streaming.connectors.pinot.PinotSinkCommittable;
+import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 
 import java.io.IOException;
 

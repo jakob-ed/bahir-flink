@@ -16,20 +16,37 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot;
+package org.apache.flink.streaming.connectors.pinot.committer;
 
-import com.esotericsoftware.kryo.NotNull;
-
+import javax.annotation.Nullable;
+import java.io.File;
 import java.io.Serializable;
+import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class PinotWriterState implements Serializable {
-    @NotNull
-    final Integer latestCommittedSegmentId;
+public class PinotSinkGlobalCommittable implements Serializable {
+    private final List<File> files;
+    private final Long minTimestamp;
+    private final Long maxTimestamp;
 
-    public PinotWriterState(Integer latestCommittedSegmentId) {
-        checkNotNull(latestCommittedSegmentId);
-        this.latestCommittedSegmentId = latestCommittedSegmentId;
+    public PinotSinkGlobalCommittable(List<File> files, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
+        this.files = checkNotNull(files);
+        this.minTimestamp = minTimestamp;
+        this.maxTimestamp = maxTimestamp;
+    }
+
+    public List<File> getFiles() {
+        return files;
+    }
+
+    @Nullable
+    public Long getMinTimestamp() {
+        return minTimestamp;
+    }
+
+    @Nullable
+    public Long getMaxTimestamp() {
+        return maxTimestamp;
     }
 }

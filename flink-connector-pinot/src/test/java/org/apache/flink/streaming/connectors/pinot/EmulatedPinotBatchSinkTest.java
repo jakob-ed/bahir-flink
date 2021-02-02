@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
@@ -42,7 +43,7 @@ import java.util.stream.Stream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
+public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
     private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
     private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
@@ -64,9 +65,8 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
     @Test
     public void testFlinkSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        // env.enableCheckpointing(10, CheckpointingMode.EXACTLY_ONCE);
-        env.setParallelism(3);
+        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+        env.setParallelism(2);
 
         List<SingleColumnTableRow> input =
                 Stream.of(
@@ -80,8 +80,10 @@ public class EmulatedPinotStreamingSinkTest extends PinotUnitTestBase {
                 env.fromCollection(input)
                         .name("Test input");
 
+        PinotSinkSegmentNameGenerator segmentNameGenerator = new PinotSinkSegmentNameGenerator(TABLE_NAME, "flink-connector");
+
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 2))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator))
                 .name("Pinot sink");
 
         // Run

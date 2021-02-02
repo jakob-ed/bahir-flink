@@ -18,26 +18,28 @@
 
 package org.apache.flink.streaming.connectors.pinot.serializer;
 
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.streaming.connectors.pinot.writer.PinotWriterState;
+import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
 
 import java.io.IOException;
 
-public class PinotWriterStateSerializer implements SimpleVersionedSerializer<PinotWriterState> {
+public class PinotSinkGlobalCommittableSerializer implements SimpleVersionedSerializer<PinotSinkGlobalCommittable> {
+
+    private static final int CURRENT_VERSION = 0;
 
     @Override
     public int getVersion() {
-        return 0;
+        return CURRENT_VERSION;
     }
 
     @Override
-    public byte[] serialize(PinotWriterState pinotWriterState) throws IOException {
-        return new byte[0];
+    public byte[] serialize(PinotSinkGlobalCommittable pinotSinkGlobalCommittable) throws IOException {
+        return SerializationUtils.serialize(pinotSinkGlobalCommittable);
     }
 
     @Override
-    public PinotWriterState deserialize(int i, byte[] bytes) throws IOException {
-        // TODO
-        return new PinotWriterState(0);
+    public PinotSinkGlobalCommittable deserialize(int i, byte[] bytes) throws IOException {
+        return SerializationUtils.deserialize(bytes);
     }
 }

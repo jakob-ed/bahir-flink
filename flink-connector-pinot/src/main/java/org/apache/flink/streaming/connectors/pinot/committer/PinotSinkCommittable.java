@@ -16,28 +16,36 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot.serializer;
+package org.apache.flink.streaming.connectors.pinot.committer;
 
-import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.streaming.connectors.pinot.writer.PinotWriterState;
+import javax.annotation.Nullable;
+import java.io.File;
+import java.io.Serializable;
 
-import java.io.IOException;
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class PinotWriterStateSerializer implements SimpleVersionedSerializer<PinotWriterState> {
+public class PinotSinkCommittable implements Serializable {
+    private final File data;
+    private final Long minTimestamp;
+    private final Long maxTimestamp;
 
-    @Override
-    public int getVersion() {
-        return 0;
+    public PinotSinkCommittable(File data, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
+        this.data = checkNotNull(data);
+        this.minTimestamp = minTimestamp;
+        this.maxTimestamp = maxTimestamp;
     }
 
-    @Override
-    public byte[] serialize(PinotWriterState pinotWriterState) throws IOException {
-        return new byte[0];
+    public File getData() {
+        return data;
     }
 
-    @Override
-    public PinotWriterState deserialize(int i, byte[] bytes) throws IOException {
-        // TODO
-        return new PinotWriterState(0);
+    @Nullable
+    public Long getMinTimestamp() {
+        return minTimestamp;
+    }
+
+    @Nullable
+    public Long getMaxTimestamp() {
+        return maxTimestamp;
     }
 }

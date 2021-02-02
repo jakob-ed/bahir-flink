@@ -99,13 +99,17 @@ public class PinotHelper extends PinotControllerApi {
         return brokers;
     }
 
-    public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws IOException {
+    public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws Exception {
         Connection pinotConnection = ConnectionFactory.fromHostList("localhost:8000");
 
         String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);
 
         Request pinotClientRequest = new Request("sql", query);
         ResultSetGroup pinotResultSetGroup = pinotConnection.execute(pinotClientRequest);
+
+        if (pinotResultSetGroup.getResultSetCount() != 1) {
+            throw new Exception("Could not find any data in Pinot cluster.");
+        }
         return pinotResultSetGroup.getResultSet(0);
     }
 }

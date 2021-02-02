@@ -16,26 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot;
+package org.apache.flink.streaming.connectors.pinot.writer;
+
+import com.esotericsoftware.kryo.NotNull;
 
 import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class PinotSinkCommittable implements Serializable {
-    private final Integer subtaskId;
-    private final Integer lastSegmentId;
+public class PinotWriterState implements Serializable {
+    @NotNull
+    final Integer latestCommittedSegmentId;
 
-    public PinotSinkCommittable(Integer subtaskId, Integer lastSegmentId) {
-        this.subtaskId = checkNotNull(subtaskId);
-        this.lastSegmentId = checkNotNull(lastSegmentId);
-    }
-
-    public Integer getLastSegmentId() {
-        return lastSegmentId;
-    }
-
-    public Integer getSubtaskId() {
-        return subtaskId;
+    public PinotWriterState(Integer latestCommittedSegmentId) {
+        checkNotNull(latestCommittedSegmentId);
+        this.latestCommittedSegmentId = latestCommittedSegmentId;
     }
 }
