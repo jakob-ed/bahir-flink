@@ -88,6 +88,18 @@ public class PinotControllerApi {
         return this.execute(httpdelete);
     }
 
+    public boolean tableHasSegment(String tableName, String segmentName) throws IOException {
+        ApiResponse res = this.get(String.format("/tables/%s/%s/metadata", tableName, segmentName));
+
+        // TODO
+        return false;
+    }
+
+    public void deleteSegment(String tableName, String segmentName) throws IOException {
+        ApiResponse res = this.delete(String.format("/tables/%s/%s", tableName, segmentName));
+        // TODO
+    }
+
     public Schema getSchema(String tableName) throws IOException {
         Schema schema;
         ApiResponse res = this.get(String.format("/tables/%s/schema", tableName));

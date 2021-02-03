@@ -45,8 +45,38 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
 
     @Override
     public List<PinotSinkGlobalCommittable> filterRecoveredCommittables(List<PinotSinkGlobalCommittable> globalCommittables) throws IOException {
-        // TODO
-        return new ArrayList<>();
+        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
+        List<PinotSinkGlobalCommittable> committablesToRetry = new ArrayList<>();
+
+        for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
+            List<String> existingSegmentNames = new ArrayList<>();
+            List<String> missingSegmentNames = new ArrayList<>();
+
+            for (int sequenceId = 0; sequenceId < globalCommittable.getFiles().size(); sequenceId++) {
+                String segmentName = this.getSegmentName(globalCommittable, sequenceId);
+                if (controllerApi.tableHasSegment(this.tableName, segmentName)) {
+                    existingSegmentNames.add(segmentName);
+                } else {
+                    missingSegmentNames.add(segmentName);
+                }
+            }
+
+            if (missingSegmentNames.isEmpty()) {
+                // All segments were already committed. Thus, we do not need to retry the commit.
+                continue;
+            }
+
+            for (String existingSegment : existingSegmentNames) {
+                // TODO: verify that data files might contain data in different ordering
+                // Some but not all segments were already committed. As we cannot assure the data
+                // files containing the same data as originally when recovering from failure,
+                // we delete the already committed segments in order to recommit them later on.
+                controllerApi.deleteSegment(tableName, existingSegment);
+            }
+            committablesToRetry.add(globalCommittable);
+        }
+
+        return committablesToRetry;
     }
 
     @Override
@@ -70,26 +100,18 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         Schema tableSchema = controllerApi.getSchema(this.tableName);
         TableConfig tableConfig = controllerApi.getTableConfig(this.tableName);
 
-        Long minTimestamp = null;
-        Long maxTimestamp = null;
-
-        for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
-            minTimestamp = PinotSinkUtils.getMin(minTimestamp, globalCommittable.getMinTimestamp());
-            maxTimestamp = PinotSinkUtils.getMin(maxTimestamp, globalCommittable.getMaxTimestamp());
-        }
-
         List<PinotSinkGlobalCommittable> failedCommits = new ArrayList<>();
 
-        int sequenceId = 0;
         for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
+            int sequenceId = 0;
             try {
                 for (File dataFile : globalCommittable.getFiles()) {
-                    this.commit(dataFile, sequenceId, minTimestamp, maxTimestamp, tableSchema, tableConfig);
+                    String segmentName = this.getSegmentName(globalCommittable, sequenceId);
+                    this.commit(dataFile, segmentName, tableSchema, tableConfig);
                     sequenceId++;
                 }
             } catch (Exception e) {
                 Log.error(e.getMessage());
-                // TODO: add sequenceId for later recovery
                 failedCommits.add(globalCommittable);
             }
         }
@@ -105,10 +127,13 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     public void close() throws Exception {
     }
 
-    private void commit(File segmentData, int sequenceId, Long minTimeValue, Long maxTimeValue, Schema tableSchema, TableConfig tableConfig) throws IOException {
+    private String getSegmentName(PinotSinkGlobalCommittable globalCommittable, int sequenceId) {
+        return this.segmentNameGenerator.generateSegmentName(sequenceId, globalCommittable.getMinTimestamp(), globalCommittable.getMaxTimestamp());
+    }
+
+    private void commit(File segmentData, String segmentName, Schema tableSchema, TableConfig tableConfig) throws IOException {
         File segmentFile = Files.createTempDirectory("flink-connector-pinot").toFile();
         LOG.info("Creating segment in " + segmentFile.getAbsolutePath());
-        String segmentName = this.segmentNameGenerator.generateSegmentName(sequenceId, minTimeValue, maxTimeValue);
 
         // Creates a segment with name `segmentName` in `segmentFile`
         Helper.generateSegment(segmentName, segmentData, segmentFile, FileFormat.JSON, null, tableConfig, tableSchema, true);
