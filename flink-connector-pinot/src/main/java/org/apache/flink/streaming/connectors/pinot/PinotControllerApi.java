@@ -91,13 +91,27 @@ public class PinotControllerApi {
     public boolean tableHasSegment(String tableName, String segmentName) throws IOException {
         ApiResponse res = this.get(String.format("/tables/%s/%s/metadata", tableName, segmentName));
 
-        // TODO
-        return false;
+        if (res.statusLine.getStatusCode() == 200) {
+            // A segment named `segmentName` exists within the table named `tableName`
+            return true;
+        }
+        if (res.statusLine.getStatusCode() == 404) {
+            // There is no such segment named `segmentName` within the table named `tableName`
+            // (or the table named `tableName` does not exist)
+            return false;
+        }
+
+        // Received an unexpected status code
+        throw new PinotControllerApiException(res.responseBody);
     }
 
     public void deleteSegment(String tableName, String segmentName) throws IOException {
         ApiResponse res = this.delete(String.format("/tables/%s/%s", tableName, segmentName));
-        // TODO
+
+        if (res.statusLine.getStatusCode() != 200) {
+            LOG.error("Could not delete segment {} from table {}. Pinot controller returned: {}", tableName, segmentName, res.responseBody);
+            throw new PinotControllerApiException(res.responseBody);
+        }
     }
 
     public Schema getSchema(String tableName) throws IOException {
