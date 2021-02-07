@@ -38,13 +38,13 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
     private final List<PinotWriterSegment<IN>> activeSegments;
 
-    public PinotSinkWriter(int rowsPerSegment) throws IOException {
+    public PinotSinkWriter(int rowsPerSegment) {
         this.rowsPerSegment = checkNotNull(rowsPerSegment);
         this.activeSegments = new ArrayList<>();
     }
 
     @Override
-    public void write(IN element, Context context) throws IOException {
+    public void write(IN element, Context context) {
         final PinotWriterSegment<IN> inProgressSegment = this.getOrCreateInProgressSegment();
         inProgressSegment.write(element, context.timestamp());
     }
@@ -72,12 +72,12 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
 
     @Override
-    public List<Void> snapshotState() throws IOException {
+    public List<Void> snapshotState() {
         // The PinotSinkWriter isn't stateful and thus does not require any state management
         return new ArrayList<>();
     }
 
     @Override
-    public void close() throws InterruptedException {
+    public void close() {
     }
 }

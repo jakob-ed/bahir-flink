@@ -69,7 +69,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     }
 
     @Override
-    public PinotSinkGlobalCommittable combine(List<PinotSinkCommittable> committables) throws IOException {
+    public PinotSinkGlobalCommittable combine(List<PinotSinkCommittable> committables) {
         List<File> files = new ArrayList<>();
         Long minTimestamp = null;
         Long maxTimestamp = null;
@@ -120,11 +120,11 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     }
 
     @Override
-    public void endOfInput() throws IOException {
+    public void endOfInput() {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
     }
 
     private String getSegmentName(PinotSinkGlobalCommittable globalCommittable, int sequenceId) {

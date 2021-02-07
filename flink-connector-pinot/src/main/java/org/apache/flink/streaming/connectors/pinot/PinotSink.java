@@ -31,7 +31,6 @@ import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,7 +43,6 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSink.class);
 
-
     private final String pinotControllerHost;
     private final String pinotControllerPort;
     private final String tableName;
@@ -54,12 +52,12 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     /**
      * Create PinotSink.
      *
-     * @param pinotControllerHost
-     * @param pinotControllerPort
-     * @param tableName
-     * @param rowsPerSegment
+     * @param pinotControllerHost Host of Pinot Controller
+     * @param pinotControllerPort Port of Pinot Controller
+     * @param tableName           Target table's name
+     * @param rowsPerSegment      Number of rows that shall be present within a generated segment
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, SegmentNameGenerator segmentNameGenerator) throws IOException {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, SegmentNameGenerator segmentNameGenerator) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -70,7 +68,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     }
 
     @Override
-    public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) throws IOException {
+    public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
         return new PinotSinkWriter<>(this.rowsPerSegment);
     }
 
