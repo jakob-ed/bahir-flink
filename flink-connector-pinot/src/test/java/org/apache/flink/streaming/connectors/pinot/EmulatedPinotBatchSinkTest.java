@@ -20,7 +20,6 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.api.common.RuntimeExecutionMode;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;

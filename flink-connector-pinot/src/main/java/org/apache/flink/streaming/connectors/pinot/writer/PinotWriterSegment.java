@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +19,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.shaded.curator4.org.apache.curator.shaded.com.google.common.base.Preconditions.checkArgument;
 
-public class PinotWriterSegment<IN> {
+public class PinotWriterSegment<IN> implements Serializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotWriterSegment.class);
 
@@ -44,11 +45,11 @@ public class PinotWriterSegment<IN> {
     }
 
     public PinotSinkCommittable prepareCommit() throws IOException {
-        File dataFile = this.flush();
+        File dataFile = this.writeToFile();
         return new PinotSinkCommittable(dataFile, this.minTimestamp, this.maxTimestamp);
     }
 
-    private File flush() throws IOException {
+    private File writeToFile() throws IOException {
         // Create folder in temp directory for storing data
         Path dir = Files.createTempDirectory("flink-connector-pinot");
         LOG.info("Using path '{}' for storing committables", dir.toAbsolutePath());

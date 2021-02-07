@@ -25,18 +25,18 @@ import java.io.Serializable;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkCommittable implements Serializable {
-    private final File data;
+    private final File dataFile;
     private final Long minTimestamp;
     private final Long maxTimestamp;
 
-    public PinotSinkCommittable(File data, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
-        this.data = checkNotNull(data);
+    public PinotSinkCommittable(File dataFile, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
+        this.dataFile = checkNotNull(dataFile);
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
-    public File getData() {
-        return data;
+    public File getDataFile() {
+        return dataFile;
     }
 
     @Nullable

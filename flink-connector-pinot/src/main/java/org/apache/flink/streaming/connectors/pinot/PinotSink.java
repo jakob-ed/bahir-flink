@@ -22,14 +22,11 @@ import org.apache.flink.api.connector.sink.GlobalCommitter;
 import org.apache.flink.api.connector.sink.Sink;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
-import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommitter;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommitter;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
-import org.apache.flink.streaming.connectors.pinot.serializer.PinotWriterStateSerializer;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter;
-import org.apache.flink.streaming.connectors.pinot.writer.PinotWriterState;
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +38,7 @@ import java.util.Optional;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriterState, PinotSinkGlobalCommittable> {
+public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, PinotSinkGlobalCommittable> {
 
     private static final long serialVersionUID = 1L;
 
@@ -73,10 +70,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
     }
 
     @Override
-    public PinotSinkWriter<IN> createWriter(InitContext context, List<PinotWriterState> states) throws IOException {
-        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(this.rowsPerSegment);
-        writer.initializeState(states);
-        return writer;
+    public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) throws IOException {
+        return new PinotSinkWriter<>(this.rowsPerSegment);
     }
 
     @Override
@@ -101,7 +96,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotWriter
     }
 
     @Override
-    public Optional<SimpleVersionedSerializer<PinotWriterState>> getWriterStateSerializer() {
-        return Optional.of(new PinotWriterStateSerializer());
+    public Optional<SimpleVersionedSerializer<Void>> getWriterStateSerializer() {
+        return Optional.empty();
     }
 }

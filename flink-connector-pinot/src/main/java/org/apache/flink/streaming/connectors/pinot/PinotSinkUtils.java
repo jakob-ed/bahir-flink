@@ -5,13 +5,10 @@ import javax.annotation.Nullable;
 public class PinotSinkUtils {
     @Nullable
     public static Long getMin(@Nullable Long first, @Nullable Long second) {
-        boolean firstIsNull = first == null;
-        boolean secondIsNull = second == null;
-
-        if (firstIsNull) {
+        if (first == null) {
             return second;
         }
-        if (secondIsNull) {
+        if (second == null) {
             return first;
         }
 
@@ -20,13 +17,10 @@ public class PinotSinkUtils {
 
     @Nullable
     public static Long getMax(@Nullable Long first, @Nullable Long second) {
-        boolean firstIsNull = first == null;
-        boolean secondIsNull = second == null;
-
-        if (firstIsNull) {
+        if (first == null) {
             return second;
         }
-        if (secondIsNull) {
+        if (second == null) {
             return first;
         }
 

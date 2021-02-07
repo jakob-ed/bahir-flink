@@ -30,7 +30,7 @@ import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, PinotWriterState> {
+public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, Void> {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
@@ -56,11 +56,8 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
         for (final PinotWriterSegment<IN> segment : this.activeSegments) {
             committables.add(segment.prepareCommit());
         }
+        this.activeSegments.clear();
         return committables;
-    }
-
-    public void initializeState(List<PinotWriterState> states) {
-        // TODO
     }
 
     private PinotWriterSegment<IN> getOrCreateInProgressSegment() {
@@ -75,8 +72,8 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
 
     @Override
-    public List<PinotWriterState> snapshotState() throws IOException {
-        // TODO
+    public List<Void> snapshotState() throws IOException {
+        // The PinotSinkWriter isn't stateful and thus does not require any state management
         return new ArrayList<>();
     }
 

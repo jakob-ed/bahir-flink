@@ -26,18 +26,18 @@ import java.util.List;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkGlobalCommittable implements Serializable {
-    private final List<File> files;
+    private final List<File> dataFiles;
     private final Long minTimestamp;
     private final Long maxTimestamp;
 
-    public PinotSinkGlobalCommittable(List<File> files, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
-        this.files = checkNotNull(files);
+    public PinotSinkGlobalCommittable(List<File> dataFiles, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
+        this.dataFiles = checkNotNull(dataFiles);
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
-    public List<File> getFiles() {
-        return files;
+    public List<File> getDataFiles() {
+        return dataFiles;
     }
 
     @Nullable
