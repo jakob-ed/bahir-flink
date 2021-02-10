@@ -23,6 +23,8 @@ import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
 import org.apache.pinot.client.ResultSet;
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.apache.pinot.spi.config.table.*;
@@ -80,9 +82,10 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
                         .name("Test input");
 
         SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
+        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run

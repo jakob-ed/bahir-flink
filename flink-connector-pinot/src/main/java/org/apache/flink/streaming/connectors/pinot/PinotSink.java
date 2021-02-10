@@ -24,6 +24,7 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommitter;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter;
@@ -48,6 +49,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     private final String tableName;
     private final Integer rowsPerSegment;
     private final SegmentNameGenerator segmentNameGenerator;
+    private final FileSystemAdapter fsAdapter;
 
     /**
      * Create PinotSink.
@@ -57,7 +59,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param tableName           Target table's name
      * @param rowsPerSegment      Number of rows that shall be present within a generated segment
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, SegmentNameGenerator segmentNameGenerator) {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -65,11 +67,12 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         checkArgument(rowsPerSegment > 0L);
         this.rowsPerSegment = rowsPerSegment;
         this.segmentNameGenerator = checkNotNull(segmentNameGenerator);
+        this.fsAdapter = checkNotNull(fsAdapter);
     }
 
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
-        return new PinotSinkWriter<>(this.rowsPerSegment);
+        return new PinotSinkWriter<>(this.rowsPerSegment, this.fsAdapter);
     }
 
     @Override

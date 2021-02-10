@@ -3,6 +3,7 @@ package org.apache.flink.streaming.connectors.pinot.writer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.streaming.connectors.pinot.PinotSinkUtils;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,28 +11,29 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.shaded.curator4.org.apache.curator.shaded.com.google.common.base.Preconditions.checkArgument;
+import static org.apache.flink.shaded.curator4.org.apache.curator.shaded.com.google.common.base.Preconditions.checkNotNull;
 
 public class PinotWriterSegment<IN> implements Serializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotWriterSegment.class);
 
     private final int maxRowsPerSegment;
+    private final FileSystemAdapter fsAdapter;
 
     private List<IN> rows;
     private Long minTimestamp = null;
     private Long maxTimestamp = null;
 
-    protected PinotWriterSegment(int maxRowsPerSegment) {
+    protected PinotWriterSegment(int maxRowsPerSegment, FileSystemAdapter fsAdapter) {
         checkArgument(maxRowsPerSegment > 0L);
         this.maxRowsPerSegment = maxRowsPerSegment;
+        this.fsAdapter = checkNotNull(fsAdapter);
         this.rows = new ArrayList<>();
     }
 
@@ -51,11 +53,10 @@ public class PinotWriterSegment<IN> implements Serializable {
 
     private File writeToFile() throws IOException {
         // Create folder in temp directory for storing data
-        Path dir = Files.createTempDirectory("flink-connector-pinot");
+        Path dir = this.fsAdapter.createTempDirectory();
         LOG.info("Using path '{}' for storing committables", dir.toAbsolutePath());
 
         // Stores row items in JSON format on disk
-        File dataFile = new File(dir.toAbsolutePath() + "/data.json");
         List<String> json = rows.stream()
                 .map(b -> {
                     try {
@@ -67,8 +68,10 @@ public class PinotWriterSegment<IN> implements Serializable {
                 })
                 .map(JsonNode::toString)
                 .collect(Collectors.toList());
-        Files.write(dataFile.toPath(), json, Charset.defaultCharset());
-        LOG.info("Successfully written data to {}", dataFile.getAbsolutePath());
+
+        String FILE_NAME = "data.json";
+        File dataFile = this.fsAdapter.writeToFile(dir, FILE_NAME, json);
+        LOG.info("Successfully written data to file {} in directory {}", FILE_NAME, dir.getFileName());
 
         return dataFile;
     }

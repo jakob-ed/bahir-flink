@@ -21,6 +21,7 @@ package org.apache.flink.streaming.connectors.pinot.writer;
 import com.google.common.collect.Iterables;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,9 +38,11 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private final Integer rowsPerSegment;
 
     private final List<PinotWriterSegment<IN>> activeSegments;
+    private final FileSystemAdapter fsAdapter;
 
-    public PinotSinkWriter(int rowsPerSegment) {
+    public PinotSinkWriter(int rowsPerSegment, FileSystemAdapter fsAdapter) {
         this.rowsPerSegment = checkNotNull(rowsPerSegment);
+        this.fsAdapter = checkNotNull(fsAdapter);
         this.activeSegments = new ArrayList<>();
     }
 
@@ -63,7 +66,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private PinotWriterSegment<IN> getOrCreateInProgressSegment() {
         final PinotWriterSegment<IN> latestSegment = Iterables.getLast(this.activeSegments, null);
         if (latestSegment == null || !latestSegment.acceptsElements()) {
-            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(this.rowsPerSegment);
+            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(this.rowsPerSegment, this.fsAdapter);
             this.activeSegments.add(inProgressSegment);
             return inProgressSegment;
         }
