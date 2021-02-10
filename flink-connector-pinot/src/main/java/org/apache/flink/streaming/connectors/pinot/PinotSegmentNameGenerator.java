@@ -5,11 +5,11 @@ import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 
-public class PinotSinkSegmentNameGenerator implements SegmentNameGenerator, Serializable {
+public class PinotSegmentNameGenerator implements SegmentNameGenerator, Serializable {
     private final String _tableName;
     private final String _segmentNamePostfix;
 
-    public PinotSinkSegmentNameGenerator(String tableName, String segmentNamePostfix) {
+    public PinotSegmentNameGenerator(String tableName, String segmentNamePostfix) {
         _tableName = tableName;
         _segmentNamePostfix = segmentNamePostfix;
     }
@@ -22,7 +22,7 @@ public class PinotSinkSegmentNameGenerator implements SegmentNameGenerator, Seri
 
     @Override
     public String toString() {
-        StringBuilder stringBuilder = new StringBuilder("PinotSinkSegmentNameGenerator: tableName=").append(_tableName);
+        StringBuilder stringBuilder = new StringBuilder("PinotSegmentNameGenerator: tableName=").append(_tableName);
         if (_segmentNamePostfix != null) {
             stringBuilder.append(", segmentNamePostfix=").append(_segmentNamePostfix);
         }

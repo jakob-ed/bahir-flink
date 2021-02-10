@@ -24,7 +24,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.pinot.client.ResultSet;
-import org.apache.pinot.spi.config.BaseJsonConfig;
+import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -79,7 +79,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
                 env.fromCollection(input)
                         .name("Test input");
 
-        PinotSinkSegmentNameGenerator segmentNameGenerator = new PinotSinkSegmentNameGenerator(TABLE_NAME, "flink-connector");
+        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
 
         // Sink into Pinot
         theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator))
@@ -105,7 +105,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
         }
     }
 
-    static class SingleColumnTableRow extends BaseJsonConfig {
+    static class SingleColumnTableRow {
 
         private String _col1;
 
