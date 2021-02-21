@@ -29,6 +29,8 @@ services:
     links:
 #      - pinot-cluster
       - data-generator
+    networks:
+      - network
 
   data-generator:
     build:
@@ -44,13 +46,17 @@ services:
     ]
     ports:
       - "5001:5001"
+    networks:
+      - network
 
-#  pinot-cluster:
-#    image: apachepinot/pinot:0.6.0
-#    command: ["QuickStart", "-type", "batch"]
-#    ports:
-#      - "9000:9000"
-#      - "8000:8000"
+#    pinot-cluster:
+#      image: apachepinot/pinot:0.6.0
+#      command: ["QuickStart", "-type", "batch"]
+#      ports:
+#        - "9000:9000"
+#        - "8000:8000"
+#      networks:
+#        - network
 
-#volumes:
-#  logvolume01: {}
+networks:
+  network: {}

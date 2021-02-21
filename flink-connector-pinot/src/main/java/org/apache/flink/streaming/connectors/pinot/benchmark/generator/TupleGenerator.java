@@ -36,6 +36,8 @@ public class TupleGenerator extends Thread {
         this.buffer = buffer;
         this.tupleCount = tupleCount;
         this.sleepTime = sleepTime;
+
+        partition = 1.0;
         event = new Event(partition);
     }
 

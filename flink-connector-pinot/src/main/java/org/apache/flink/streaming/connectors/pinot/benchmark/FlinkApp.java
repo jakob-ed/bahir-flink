@@ -18,6 +18,8 @@
 package org.apache.flink.streaming.connectors.pinot.benchmark;
 
 
+import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.PinotSegmentNameGenerator;
@@ -51,7 +53,10 @@ public class FlinkApp implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final Configuration conf = new Configuration();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
+        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.setParallelism(this.parallelism);
 
         DataStream<String> dataStream = this.setupSource(env);
         this.setupSink(dataStream);

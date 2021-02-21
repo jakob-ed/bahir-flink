@@ -28,7 +28,6 @@ RUN mvn package -Dmaven.test.skip=true
 
 
 FROM openjdk:11
-COPY --from=builder /build/flink-connector-pinot/target/flink-connector-pinot_2.11-1.1-SNAPSHOT-jar-with-dependencies.jar /app/benchmark-app.jar
-#COPY flink-connector-pinot/target/flink-connector-pinot_2.11-1.1-SNAPSHOT-jar-with-dependencies.jar /app/benchmark-app.jar
+COPY --from=builder /build/flink-connector-pinot/target/flink-connector-pinot_2.11-1.1-SNAPSHOT.jar /app/benchmark-app.jar
 
 ENTRYPOINT ["java", "-cp", "/app/benchmark-app.jar", "org.apache.flink.streaming.connectors.pinot.benchmark.BenchmarkApp"]

@@ -63,7 +63,7 @@ public class DataGenerator implements Callable<Integer> {
 
             Thread sender = new TupleSender(buffer, this.numTuples, out, serverSocket);
             sender.start();
-            sender.wait();
+
             return 0;
         } catch (Exception e) {
             e.printStackTrace();
