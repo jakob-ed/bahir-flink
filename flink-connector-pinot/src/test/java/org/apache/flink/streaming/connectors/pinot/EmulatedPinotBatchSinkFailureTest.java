@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -41,7 +43,7 @@ import java.util.stream.Stream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
+public class EmulatedPinotBatchSinkFailureTest extends PinotUnitTestBase {
     private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
     private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
@@ -81,55 +83,17 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
         SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
 
+        AtomicBoolean failureRaised = new AtomicBoolean(false);
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
-                .name("Pinot sink");
-
-        // Run
-        env.execute();
-
-        TimeUnit.MILLISECONDS.sleep(500);
-
-        // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
-
-        assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
-
-        // Check output strings
-        List<String> output = IntStream.range(0, resultSet.getRowCount())
-                .mapToObj(i -> resultSet.getString(i, 0))
-                .collect(Collectors.toList());
-
-        for (SingleColumnTableRow test : input) {
-            assertTrue("Missing " + test.getCol1(), output.contains(test.getCol1()));
-        }
-    }
-
-    @Test
-    public void recoverFromFailure() throws Exception {
-
-
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
-        env.setParallelism(2);
-
-        List<SingleColumnTableRow> input =
-                Stream.of(
-                        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                        "Ten", "Eleven", "Twelve")
-                        .map(SingleColumnTableRow::new)
-                        .collect(Collectors.toList());
-
-        // Create test stream
-        DataStream<SingleColumnTableRow> theData =
-                env.fromCollection(input)
-                        .name("Test input");
-
-        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
-        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
-
-        // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
+        theData
+                .map(item -> {
+                    if (item.getCol1().equals("Eleven") && !failureRaised.get()) {
+                        failureRaised.set(true);
+                        throw new Exception("EmulatedPinotBatchSinkFailureTest raised failure");
+                    }
+                    return item;
+                })
+                .sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run

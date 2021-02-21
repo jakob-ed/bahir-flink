@@ -18,9 +18,14 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.spotify.docker.client.exceptions.DockerException;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.util.TestLogger;
+import org.apache.pinot.spi.config.table.*;
+import org.apache.pinot.spi.data.DimensionFieldSpec;
+import org.apache.pinot.spi.data.FieldSpec;
+import org.apache.pinot.spi.data.Schema;
 import org.junit.BeforeClass;
 import org.junit.jupiter.api.AfterAll;
 
@@ -53,5 +58,74 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     public static String getPinotControllerPort() {
         return "9000";
         // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+    }
+
+    static class SingleColumnTableRow {
+
+        private String _col1;
+
+        SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1) {
+            this._col1 = col1;
+        }
+
+        @JsonProperty("col1")
+        public String getCol1() {
+            return this._col1;
+        }
+
+        public void setCol1(String _col1) {
+            this._col1 = _col1;
+        }
+    }
+
+    static class PinotTableConfig {
+
+        static final String TABLE_NAME = "FLTable";
+        static final String SCHEMA_NAME = "FLTableSchema";
+
+        private static SegmentsValidationAndRetentionConfig getValidationConfig() {
+            SegmentsValidationAndRetentionConfig validationConfig = new SegmentsValidationAndRetentionConfig();
+            validationConfig.setSegmentAssignmentStrategy("BalanceNumSegmentAssignmentStrategy");
+            validationConfig.setSegmentPushType("APPEND");
+            validationConfig.setSchemaName(SCHEMA_NAME);
+            validationConfig.setReplication("1");
+            return validationConfig;
+        }
+
+        private static TenantConfig getTenantConfig() {
+            TenantConfig tenantConfig = new TenantConfig("DefaultTenant", "DefaultTenant", null);
+            return tenantConfig;
+        }
+
+        private static IndexingConfig getIndexingConfig() {
+            IndexingConfig indexingConfig = new IndexingConfig();
+            return indexingConfig;
+        }
+
+        private static TableCustomConfig getCustomConfig() {
+            TableCustomConfig customConfig = new TableCustomConfig(null);
+            ;
+            return customConfig;
+        }
+
+        static TableConfig getTableConfig() {
+            return new TableConfig(
+                    TABLE_NAME,
+                    TableType.OFFLINE.name(),
+                    getValidationConfig(),
+                    getTenantConfig(),
+                    getIndexingConfig(),
+                    getCustomConfig(),
+                    null, null, null, null, null,
+                    null, null, null, null
+            );
+        }
+
+        static Schema getTableSchema() {
+            Schema schema = new Schema();
+            schema.setSchemaName(SCHEMA_NAME);
+            schema.addField(new DimensionFieldSpec("col1", FieldSpec.DataType.STRING, true));
+            return schema;
+        }
     }
 }
