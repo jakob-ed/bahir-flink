@@ -27,8 +27,13 @@ import org.apache.flink.streaming.connectors.pinot.PinotSink;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
+import org.apache.pinot.spi.config.table.*;
+import org.apache.pinot.spi.data.DimensionFieldSpec;
+import org.apache.pinot.spi.data.FieldSpec;
+import org.apache.pinot.spi.data.Schema;
 import picocli.CommandLine;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.Callable;
 
@@ -42,11 +47,11 @@ public class FlinkApp implements Callable<Integer> {
 
     @CommandLine.Option(names = "--parallelism", required = true,
             description = "The num of partitions to execute the Flink application with.")
-    private Integer parallelism = 1;
+    private Integer parallelism;
 
     @CommandLine.Option(names = "--segmentSize", required = true,
             description = "The number of tuples per segment.")
-    private Integer segmentSize = 100;
+    private Integer segmentSize;
 
     @CommandLine.Option(names = "--port", required = true, description = "The source port.")
     private Integer port;
@@ -57,9 +62,16 @@ public class FlinkApp implements Callable<Integer> {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
         env.setParallelism(this.parallelism);
+        env.enableCheckpointing(10000);
 
         DataStream<String> dataStream = this.setupSource(env);
+        dataStream.map(message -> {
+            System.out.println("Received tuple @Flink " + message);
+            return message;
+        });
         this.setupSink(dataStream);
+
+        this.setupPinot();
 
         env.execute();
         return 0;
@@ -84,5 +96,63 @@ public class FlinkApp implements Callable<Integer> {
         // Sink into Pinot
         dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, TABLE_NAME, segmentSize, segmentNameGenerator, fsAdapter))
                 .name("Pinot Sink");
+    }
+
+    private void setupPinot() throws IOException {
+        PinotHelper pinotHelper = new PinotHelper(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT);
+        pinotHelper.createTable(PinotTableConfig.getTableConfig(), PinotTableConfig.getTableSchema());
+    }
+
+    static class PinotTableConfig {
+
+        static final String TABLE_NAME = "BenchmarkTable";
+        static final String SCHEMA_NAME = "BenchmarkTableSchema";
+
+        private static SegmentsValidationAndRetentionConfig getValidationConfig() {
+            SegmentsValidationAndRetentionConfig validationConfig = new SegmentsValidationAndRetentionConfig();
+            validationConfig.setSegmentAssignmentStrategy("BalanceNumSegmentAssignmentStrategy");
+            validationConfig.setSegmentPushType("APPEND");
+            validationConfig.setSchemaName(SCHEMA_NAME);
+            validationConfig.setReplication("1");
+            return validationConfig;
+        }
+
+        private static TenantConfig getTenantConfig() {
+            TenantConfig tenantConfig = new TenantConfig("DefaultTenant", "DefaultTenant", null);
+            return tenantConfig;
+        }
+
+        private static IndexingConfig getIndexingConfig() {
+            IndexingConfig indexingConfig = new IndexingConfig();
+            return indexingConfig;
+        }
+
+        private static TableCustomConfig getCustomConfig() {
+            TableCustomConfig customConfig = new TableCustomConfig(null);
+            ;
+            return customConfig;
+        }
+
+        static TableConfig getTableConfig() {
+            return new TableConfig(
+                    TABLE_NAME,
+                    TableType.OFFLINE.name(),
+                    getValidationConfig(),
+                    getTenantConfig(),
+                    getIndexingConfig(),
+                    getCustomConfig(),
+                    null, null, null, null, null,
+                    null, null, null, null
+            );
+        }
+
+        static Schema getTableSchema() {
+            Schema schema = new Schema();
+            schema.setSchemaName(SCHEMA_NAME);
+            schema.addField(new DimensionFieldSpec("key", FieldSpec.DataType.STRING, true));
+            schema.addField(new DimensionFieldSpec("value", FieldSpec.DataType.STRING, true));
+            schema.addField(new DimensionFieldSpec("ts", FieldSpec.DataType.STRING, true));
+            return schema;
+        }
     }
 }

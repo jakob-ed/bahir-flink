@@ -26,9 +26,9 @@ services:
         "--parallelism", "1",
         "--segmentSize", "100"
     ]
-    links:
-#      - pinot-cluster
+    depends_on:
       - data-generator
+      - pinot-cluster
     networks:
       - network
 
@@ -40,7 +40,7 @@ services:
     command: [
         "DataGenerator",
         "--numTuples", "10000",
-        "--sleepTime", "100",
+        "--sleepTime", "1",
         "--bufferSize", "1000",
         "--port", "5001"
     ]
@@ -49,14 +49,14 @@ services:
     networks:
       - network
 
-#    pinot-cluster:
-#      image: apachepinot/pinot:0.6.0
-#      command: ["QuickStart", "-type", "batch"]
-#      ports:
-#        - "9000:9000"
-#        - "8000:8000"
-#      networks:
-#        - network
+  pinot-cluster:
+    image: apachepinot/pinot:0.6.0
+    command: ["QuickStart", "-type", "batch"]
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    networks:
+      - network
 
 networks:
   network: {}
