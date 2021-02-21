@@ -67,8 +67,6 @@ public class TupleSender extends Thread {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-
     }
 
     public static void writeHashMapToCsv(HashMap<Long, Integer> hm, String path) {

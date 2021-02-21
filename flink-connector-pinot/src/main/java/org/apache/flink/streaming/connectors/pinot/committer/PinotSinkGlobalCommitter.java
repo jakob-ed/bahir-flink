@@ -46,7 +46,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PinotSinkGlobalCommitter.class);
+    private static final Logger LOG = LoggerFactory.getLogger("PinotSinkGlobalCommitter");
 
     private final String pinotControllerHost;
     private final String pinotControllerPort;
@@ -97,11 +97,14 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
             maxTimestamp = PinotSinkUtils.getMax(maxTimestamp, committable.getMaxTimestamp());
         }
 
+        LOG.info("Combined {} committables into one global committable", committables.size());
         return new PinotSinkGlobalCommittable(files, minTimestamp, maxTimestamp);
     }
 
     @Override
     public List<PinotSinkGlobalCommittable> commit(List<PinotSinkGlobalCommittable> globalCommittables) throws IOException {
+        LOG.info("Global commit for table {}", this.tableName);
+
         PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
         Schema tableSchema = controllerApi.getSchema(this.tableName);
         TableConfig tableConfig = controllerApi.getTableConfig(this.tableName);

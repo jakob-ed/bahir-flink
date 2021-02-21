@@ -31,6 +31,7 @@ import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
+import org.apache.pinot.spi.utils.JsonUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.util.concurrent.Callable;
 @CommandLine.Command(name = "FlinkApp", description = "Starts the benchmark app.")
 public class FlinkApp implements Callable<Integer> {
 
-    private String TABLE_NAME = "flink-pinot-connector-benchmark";
     private String PINOT_CONTROLLER_HOST = "pinot-cluster";
     private String PINOT_CONTROLLER_PORT = "9000";
 
@@ -56,6 +56,9 @@ public class FlinkApp implements Callable<Integer> {
     @CommandLine.Option(names = "--port", required = true, description = "The source port.")
     private Integer port;
 
+    @CommandLine.Option(names = "--delay", required = true, description = "Startup delay.")
+    private Long delay;
+
     @Override
     public Integer call() throws Exception {
         final Configuration conf = new Configuration();
@@ -64,12 +67,16 @@ public class FlinkApp implements Callable<Integer> {
         env.setParallelism(this.parallelism);
         env.enableCheckpointing(10000);
 
-        DataStream<String> dataStream = this.setupSource(env);
-        dataStream.map(message -> {
-            System.out.println("Received tuple @Flink " + message);
-            return message;
-        });
+        DataStream<BenchmarkEvent> dataStream = this.setupSource(env)
+                .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class))
+                .map(message -> {
+                    System.out.println("Received tuple @Flink " + message.toString());
+                    return message;
+                });
         this.setupSink(dataStream);
+
+        // Wait before trying to connect to the Pinot controller
+        Thread.sleep(delay);
 
         this.setupPinot();
 
@@ -89,12 +96,12 @@ public class FlinkApp implements Callable<Integer> {
         return socketSource;
     }
 
-    private void setupSink(DataStream<String> dataStream) {
-        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
+    private void setupSink(DataStream<BenchmarkEvent> dataStream) {
+        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(PinotTableConfig.TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-benchmark");
 
         // Sink into Pinot
-        dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, TABLE_NAME, segmentSize, segmentNameGenerator, fsAdapter))
+        dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, PinotTableConfig.TABLE_NAME, segmentSize, segmentNameGenerator, fsAdapter))
                 .name("Pinot Sink");
     }
 

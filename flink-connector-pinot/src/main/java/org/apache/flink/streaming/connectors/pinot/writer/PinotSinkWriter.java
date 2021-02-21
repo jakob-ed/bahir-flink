@@ -55,10 +55,12 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     @Override
     public List<PinotSinkCommittable> prepareCommit(boolean flush) throws IOException {
         // TODO: respect flush argument
+        LOG.info("Creating committables...");
         List<PinotSinkCommittable> committables = new ArrayList<>();
         for (final PinotWriterSegment<IN> segment : this.activeSegments) {
             committables.add(segment.prepareCommit());
         }
+        LOG.info("Created {} committables", committables.size());
         this.activeSegments.clear();
         return committables;
     }

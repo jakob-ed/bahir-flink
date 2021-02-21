@@ -17,6 +17,10 @@
 
 package org.apache.flink.streaming.connectors.pinot.benchmark.generator;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.flink.streaming.connectors.pinot.benchmark.BenchmarkEvent;
+import org.apache.pinot.spi.utils.JsonUtils;
+
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Random;
@@ -43,7 +47,7 @@ public class Event implements Serializable {
             "PF", "TF", "MK", "GA", "GM", "GE", "DE", "GH", "GI", "GB", "GR", "GL", "GD", "GP", "GU", "GT", "GG", "GN", "GW", "GY"};
     private String[] geoList = null;
 
-    public String generateJson() {
+    public String generateJson() throws JsonProcessingException {
 
         //geo
         String geo = null;
@@ -57,8 +61,7 @@ public class Event implements Serializable {
         float finalX = rand.nextFloat() * (maxX - minX) + minX;
         String price = Float.toString(finalX);
 
-        String json = "{ \"key\":\"" + geo + "\",\"value\":\"" + price + "\"";
-
-        return json + ",\"ts\": \"" + System.currentTimeMillis() + "\"}";
+        BenchmarkEvent e = new BenchmarkEvent(price, geo, String.valueOf(System.currentTimeMillis()));
+        return JsonUtils.objectToString(e);
     }
 }

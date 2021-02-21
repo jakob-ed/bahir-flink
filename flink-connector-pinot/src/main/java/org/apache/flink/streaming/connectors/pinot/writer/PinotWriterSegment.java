@@ -38,7 +38,7 @@ import static org.apache.flink.shaded.curator4.org.apache.curator.shaded.com.goo
 
 public class PinotWriterSegment<IN> implements Serializable {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PinotWriterSegment.class);
+    private static final Logger LOG = LoggerFactory.getLogger("PinotWriterSegment");
 
     private final int maxRowsPerSegment;
     private final FileSystemAdapter fsAdapter;

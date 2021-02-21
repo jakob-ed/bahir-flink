@@ -24,7 +24,8 @@ services:
         "FlinkApp",
         "--port", "5001",
         "--parallelism", "1",
-        "--segmentSize", "100"
+        "--segmentSize", "100",
+        "--delay", "60000" # Wait 20s before trying to connect to pinot-cluster
     ]
     depends_on:
       - data-generator
@@ -40,7 +41,7 @@ services:
     command: [
         "DataGenerator",
         "--numTuples", "10000",
-        "--sleepTime", "1",
+        "--sleepTime", "100", # in milliseconds
         "--bufferSize", "1000",
         "--port", "5001"
     ]
