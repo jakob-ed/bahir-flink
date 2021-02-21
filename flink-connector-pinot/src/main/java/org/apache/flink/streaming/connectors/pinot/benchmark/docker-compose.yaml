@@ -18,36 +18,39 @@ services:
   flink-benchmark:
     build:
       # Set context to flink-connector-pinot folder
-      context: ../../../../../../../../../../
-      dockerfile: "./src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/flink-connector-pinot.Dockerfile"
+      context: ../../../../../../../../../../../
+      dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
-        "org.apache.flink.streaming.connectors.pinot.benchmark.FlinkBenchmarkApp",
+        "FlinkApp",
+        "--port", "5001",
         "--parallelism", "1",
         "--segmentSize", "100"
     ]
     links:
-      - pinot-cluster
+#      - pinot-cluster
       - data-generator
 
   data-generator:
     build:
       # Set context to flink-connector-pinot folder
-      context: ../../../../../../../../../../
-      dockerfile: "./src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/flink-connector-pinot.Dockerfile"
+      context: ../../../../../../../../../../../
+      dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
-        "org.apache.flink.streaming.connectors.pinot.benchmark.DataGenerator",
-        "--numTuples", "100",
+        "DataGenerator",
+        "--numTuples", "10000",
         "--sleepTime", "100",
         "--bufferSize", "1000",
         "--port", "5001"
     ]
-
-  pinot-cluster:
-    image: apachepinot/pinot:0.6.0
-    command: ["QuickStart", "-type", "batch"]
     ports:
-      - "9000:9000"
-      - "8000:8000"
+      - "5001:5001"
 
-volumes:
-  logvolume01: {}
+#  pinot-cluster:
+#    image: apachepinot/pinot:0.6.0
+#    command: ["QuickStart", "-type", "batch"]
+#    ports:
+#      - "9000:9000"
+#      - "8000:8000"
+
+#volumes:
+#  logvolume01: {}

@@ -13,11 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM java:8
+FROM maven:3.6.3-jdk-11 as builder
+WORKDIR /build
 
-WORKDIR /app
+COPY pom.xml pom.xml
 
-COPY src src
-CMD mvn package -Dmaven.test.skip=true
+COPY flink-connector-pinot/pom.xml flink-connector-pinot/pom.xml
 
-ENTRYPOINT ["java", "-cp", "target/flink-connector-pinot_2.11-1.1-SNAPSHOT-jar-with-dependencies.jar"]
+WORKDIR /build/flink-connector-pinot
+RUN mvn dependency:go-offline
+
+COPY flink-connector-pinot/src src
+RUN mvn package -Dmaven.test.skip=true
+
+
+FROM openjdk:11
+COPY --from=builder /build/flink-connector-pinot/target/flink-connector-pinot_2.11-1.1-SNAPSHOT-jar-with-dependencies.jar /app/benchmark-app.jar
+#COPY flink-connector-pinot/target/flink-connector-pinot_2.11-1.1-SNAPSHOT-jar-with-dependencies.jar /app/benchmark-app.jar
+
+ENTRYPOINT ["java", "-cp", "/app/benchmark-app.jar", "org.apache.flink.streaming.connectors.pinot.benchmark.BenchmarkApp"]

@@ -30,20 +30,24 @@ import picocli.CommandLine;
 import java.util.Collections;
 import java.util.concurrent.Callable;
 
-@CommandLine.Command(name = "checksum", mixinStandardHelpOptions = true, version = "checksum 4.0",
-        description = "Prints the checksum (MD5 by default) of a file to STDOUT.")
-public class FlinkBenchmarkApp implements Callable<Integer> {
+@CommandLine.Command(name = "FlinkApp", description = "Starts the benchmark app.")
+public class FlinkApp implements Callable<Integer> {
 
     private String TABLE_NAME = "flink-pinot-connector-benchmark";
     private String PINOT_CONTROLLER_HOST = "pinot-cluster";
     private String PINOT_CONTROLLER_PORT = "9000";
 
 
-    @CommandLine.Option(names = {"-p", "--parallelism"}, description = "The num of partitions to execute the Flink application with.")
+    @CommandLine.Option(names = "--parallelism", required = true,
+            description = "The num of partitions to execute the Flink application with.")
     private Integer parallelism = 1;
 
-    @CommandLine.Option(names = {"-s", "--segmentSize"}, description = "The number of tuples per segment.")
+    @CommandLine.Option(names = "--segmentSize", required = true,
+            description = "The number of tuples per segment.")
     private Integer segmentSize = 100;
+
+    @CommandLine.Option(names = "--port", required = true, description = "The source port.")
+    private Integer port;
 
     @Override
     public Integer call() throws Exception {
@@ -52,13 +56,14 @@ public class FlinkBenchmarkApp implements Callable<Integer> {
         DataStream<String> dataStream = this.setupSource(env);
         this.setupSink(dataStream);
 
+        env.execute();
         return 0;
     }
 
     private DataStream<String> setupSource(StreamExecutionEnvironment env) {
         DataStream<String> socketSource = null;
         for (String host : Collections.singletonList("data-generator")) {
-            for (int port : Collections.singletonList(5001)) {
+            for (int port : Collections.singletonList(this.port)) {
                 DataStream<String> socketSource_i = env.socketTextStream(host, port);
                 socketSource = socketSource == null ? socketSource_i : socketSource.union(socketSource_i);
             }
@@ -74,10 +79,5 @@ public class FlinkBenchmarkApp implements Callable<Integer> {
         // Sink into Pinot
         dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, TABLE_NAME, segmentSize, segmentNameGenerator, fsAdapter))
                 .name("Pinot Sink");
-    }
-
-    public static void main(String... args) {
-        int exitCode = new CommandLine(new FlinkBenchmarkApp()).execute(args);
-        System.exit(exitCode);
     }
 }

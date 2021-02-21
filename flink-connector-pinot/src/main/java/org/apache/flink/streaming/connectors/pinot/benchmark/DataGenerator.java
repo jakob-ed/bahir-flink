@@ -25,28 +25,29 @@ import picocli.CommandLine;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 
-@CommandLine.Command(name = "DataGenerator", description = "Start the data generator.")
-public class DataGenerator implements Runnable {
+@CommandLine.Command(name = "DataGenerator", mixinStandardHelpOptions = true,
+        description = "Start the data generator.")
+public class DataGenerator implements Callable<Integer> {
 
-    @CommandLine.Option(names = {"-n", "--numTuples"}, description = "The overall number of tuples to send.")
+    @CommandLine.Option(names = "--numTuples", required = true, description = "The overall number of tuples to send.")
     private int numTuples;
 
-    @CommandLine.Option(names = {"-s", "--sleepTime"}, description = "Time to sleep between tuple send.")
+    @CommandLine.Option(names = "--sleepTime", required = true, description = "Time to sleep between tuple send.")
     private long sleepTime;
 
-    @CommandLine.Option(names = {"-b", "--bufferSize"}, description = "Size of tuples buffer.")
+    @CommandLine.Option(names = "--bufferSize", required = true, description = "Size of tuples buffer.")
     private int bufferSize;
 
-    @CommandLine.Option(names = {"-p", "--port"}, description = "The port.")
-    private int port = 5001;
+    @CommandLine.Option(names = "--port", required = true, description = "The port.")
+    private int port;
 
 
     @Override
-    public void run() {
+    public Integer call() {
         BlockingQueue<String> buffer = new ArrayBlockingQueue<>(bufferSize);
 
         try {
@@ -62,14 +63,11 @@ public class DataGenerator implements Runnable {
 
             Thread sender = new TupleSender(buffer, this.numTuples, out, serverSocket);
             sender.start();
+            sender.wait();
+            return 0;
         } catch (Exception e) {
             e.printStackTrace();
+            return 1;
         }
-    }
-
-    public static void main(String... args) {
-        System.out.println("args: " + Arrays.toString(args));
-        int exitCode = new CommandLine(new FlinkBenchmarkApp()).execute(args);
-        System.exit(exitCode);
     }
 }
