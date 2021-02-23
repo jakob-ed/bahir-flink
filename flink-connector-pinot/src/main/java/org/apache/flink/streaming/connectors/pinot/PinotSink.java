@@ -50,6 +50,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     private final Integer rowsPerSegment;
     private final SegmentNameGenerator segmentNameGenerator;
     private final FileSystemAdapter fsAdapter;
+    private final EventTimeExtractor<IN> eventTimeExtractor;
 
     /**
      * Create PinotSink.
@@ -58,21 +59,25 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param pinotControllerPort Port of Pinot Controller
      * @param tableName           Target table's name
      * @param rowsPerSegment      Number of rows that shall be present within a generated segment
+     * @param eventTimeExtractor
+     * @param segmentNameGenerator
+     * @param fsAdapter
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, Integer rowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
 
         checkArgument(rowsPerSegment > 0L);
         this.rowsPerSegment = rowsPerSegment;
+        this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
         this.segmentNameGenerator = checkNotNull(segmentNameGenerator);
         this.fsAdapter = checkNotNull(fsAdapter);
     }
 
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
-        return new PinotSinkWriter<>(this.rowsPerSegment, this.fsAdapter);
+        return new PinotSinkWriter<>(this.rowsPerSegment, this.eventTimeExtractor, this.fsAdapter);
     }
 
     @Override

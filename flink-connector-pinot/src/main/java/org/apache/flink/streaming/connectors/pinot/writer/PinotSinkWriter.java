@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.pinot.writer;
 
 import com.google.common.collect.Iterables;
 import org.apache.flink.api.connector.sink.SinkWriter;
+import org.apache.flink.streaming.connectors.pinot.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.slf4j.Logger;
@@ -36,12 +37,14 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
     private final Integer rowsPerSegment;
+    private EventTimeExtractor<IN> eventTimeExtractor;
 
     private final List<PinotWriterSegment<IN>> activeSegments;
     private final FileSystemAdapter fsAdapter;
 
-    public PinotSinkWriter(int rowsPerSegment, FileSystemAdapter fsAdapter) {
+    public PinotSinkWriter(int rowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, FileSystemAdapter fsAdapter) {
         this.rowsPerSegment = checkNotNull(rowsPerSegment);
+        this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
         this.fsAdapter = checkNotNull(fsAdapter);
         this.activeSegments = new ArrayList<>();
     }
@@ -49,7 +52,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     @Override
     public void write(IN element, Context context) {
         final PinotWriterSegment<IN> inProgressSegment = this.getOrCreateInProgressSegment();
-        inProgressSegment.write(element, context.timestamp());
+        inProgressSegment.write(element, this.eventTimeExtractor.getEventTime(element, context));
     }
 
     @Override

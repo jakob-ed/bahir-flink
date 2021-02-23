@@ -61,7 +61,7 @@ public class Event implements Serializable {
         float finalX = rand.nextFloat() * (maxX - minX) + minX;
         String price = Float.toString(finalX);
 
-        BenchmarkEvent e = new BenchmarkEvent(price, geo, String.valueOf(System.currentTimeMillis()));
+        BenchmarkEvent e = new BenchmarkEvent(price, geo, System.currentTimeMillis());
         return JsonUtils.objectToString(e);
     }
 }

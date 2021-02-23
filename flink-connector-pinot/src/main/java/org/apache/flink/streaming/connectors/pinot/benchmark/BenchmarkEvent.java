@@ -22,11 +22,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class BenchmarkEvent {
     private String value;
     private String key;
-    private String ts;
+    private Long ts;
 
     public BenchmarkEvent(@JsonProperty(value = "value", required = true) String value,
                           @JsonProperty(value = "key", required = true) String key,
-                          @JsonProperty(value = "ts", required = true) String ts) {
+                          @JsonProperty(value = "ts", required = true) Long ts) {
         this.value = value;
         this.key = key;
         this.ts = ts;
@@ -51,11 +51,11 @@ public class BenchmarkEvent {
     }
 
     @JsonProperty("ts")
-    public String getTs() {
+    public Long getTs() {
         return ts;
     }
 
-    public void setTs(String ts) {
+    public void setTs(Long ts) {
         this.ts = ts;
     }
 }

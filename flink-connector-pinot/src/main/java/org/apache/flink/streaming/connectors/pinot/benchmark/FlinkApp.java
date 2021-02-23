@@ -100,8 +100,8 @@ public class FlinkApp implements Callable<Integer> {
         SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(PinotTableConfig.TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-benchmark");
 
-        // Sink into Pinot
-        dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, PinotTableConfig.TABLE_NAME, segmentSize, segmentNameGenerator, fsAdapter))
+        BenchmarkEventTimeExtractor eventTimeExtractor = new BenchmarkEventTimeExtractor();
+        dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, PinotTableConfig.TABLE_NAME, segmentSize, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot Sink");
     }
 
