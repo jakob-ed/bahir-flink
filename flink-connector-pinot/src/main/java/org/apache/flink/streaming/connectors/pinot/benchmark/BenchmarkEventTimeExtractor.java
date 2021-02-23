@@ -30,7 +30,7 @@ public class BenchmarkEventTimeExtractor extends EventTimeExtractor<BenchmarkEve
 
     @Override
     public String getTimeColumn() {
-        return "timestamp";
+        return "ts";
     }
 
     @Override
