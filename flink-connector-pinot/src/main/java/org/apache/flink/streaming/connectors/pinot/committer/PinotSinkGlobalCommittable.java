@@ -18,7 +18,6 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.Serializable;
 import java.util.List;
@@ -27,10 +26,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkGlobalCommittable implements Serializable {
     private final List<File> dataFiles;
-    private final Long minTimestamp;
-    private final Long maxTimestamp;
+    private final long minTimestamp;
+    private final long maxTimestamp;
 
-    public PinotSinkGlobalCommittable(List<File> dataFiles, @Nullable Long minTimestamp, @Nullable Long maxTimestamp) {
+    public PinotSinkGlobalCommittable(List<File> dataFiles, long minTimestamp, long maxTimestamp) {
         this.dataFiles = checkNotNull(dataFiles);
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
@@ -40,13 +39,11 @@ public class PinotSinkGlobalCommittable implements Serializable {
         return dataFiles;
     }
 
-    @Nullable
-    public Long getMinTimestamp() {
+    public long getMinTimestamp() {
         return minTimestamp;
     }
 
-    @Nullable
-    public Long getMaxTimestamp() {
+    public long getMaxTimestamp() {
         return maxTimestamp;
     }
 }

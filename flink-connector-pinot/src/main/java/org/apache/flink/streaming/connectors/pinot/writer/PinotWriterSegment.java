@@ -44,8 +44,8 @@ public class PinotWriterSegment<IN> implements Serializable {
     private final FileSystemAdapter fsAdapter;
 
     private List<IN> rows;
-    private Long minTimestamp = null;
-    private Long maxTimestamp = null;
+    private long minTimestamp = Long.MAX_VALUE;
+    private long maxTimestamp = Long.MIN_VALUE;
 
     protected PinotWriterSegment(int maxRowsPerSegment, FileSystemAdapter fsAdapter) {
         checkArgument(maxRowsPerSegment > 0L);
@@ -54,13 +54,13 @@ public class PinotWriterSegment<IN> implements Serializable {
         this.rows = new ArrayList<>();
     }
 
-    public void write(IN element, Long timestmap) {
+    public void write(IN element, long timestmap) {
         if (!this.acceptsElements()) {
             throw new IllegalStateException("This PinotSegmentWriter does not accept any elements anymore.");
         }
         this.rows.add(element);
-        this.minTimestamp = PinotSinkUtils.getMin(this.minTimestamp, timestmap);
-        this.maxTimestamp = PinotSinkUtils.getMax(this.maxTimestamp, timestmap);
+        this.minTimestamp = Long.min(this.minTimestamp, timestmap);
+        this.maxTimestamp = Long.max(this.maxTimestamp, timestmap);
     }
 
     public PinotSinkCommittable prepareCommit() throws IOException {

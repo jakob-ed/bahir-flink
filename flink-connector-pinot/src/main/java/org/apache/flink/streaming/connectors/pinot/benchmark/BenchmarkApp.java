@@ -26,7 +26,8 @@ import java.util.concurrent.Callable;
         mixinStandardHelpOptions = true,
         subcommands = {
                 DataGenerator.class,
-                FlinkApp.class
+                FlinkApp.class,
+                MetricsCollector.class
         },
         commandListHeading = "%nCommands:%n%n"
 )

@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.spotify.docker.client.exceptions.DockerException;
+import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
@@ -30,6 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.jupiter.api.AfterAll;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 public class PinotUnitTestBase extends TestLogger implements Serializable {
     @BeforeClass
@@ -63,9 +65,12 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
     static class SingleColumnTableRow {
 
         private String _col1;
+        private Long _timestamp;
 
-        SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1) {
+        SingleColumnTableRow(@JsonProperty(value = "col1", required = true) String col1,
+                             @JsonProperty(value = "timestamp", required = true) Long timestamp) {
             this._col1 = col1;
+            this._timestamp = timestamp;
         }
 
         @JsonProperty("col1")
@@ -75,6 +80,29 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
 
         public void setCol1(String _col1) {
             this._col1 = _col1;
+        }
+
+        @JsonProperty("timestamp")
+        public Long getTimestamp() { return this._timestamp; }
+
+        public void setTimestamp(Long timestamp) { this._timestamp = timestamp; }
+    }
+
+    static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
+
+        @Override
+        public long getEventTime(SingleColumnTableRow element, SinkWriter.Context context) {
+            return element.getTimestamp();
+        }
+
+        @Override
+        public String getTimeColumn() {
+            return "timestamp";
+        }
+
+        @Override
+        public TimeUnit getSegmentTimeUnit() {
+            return TimeUnit.MILLISECONDS;
         }
     }
 
@@ -125,6 +153,7 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
             Schema schema = new Schema();
             schema.setSchemaName(SCHEMA_NAME);
             schema.addField(new DimensionFieldSpec("col1", FieldSpec.DataType.STRING, true));
+            schema.addField(new DimensionFieldSpec("timestamp", FieldSpec.DataType.STRING, true));
             return schema;
         }
     }

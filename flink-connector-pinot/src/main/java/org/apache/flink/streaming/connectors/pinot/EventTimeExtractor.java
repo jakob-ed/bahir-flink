@@ -21,8 +21,13 @@ package org.apache.flink.streaming.connectors.pinot;
 import org.apache.flink.api.connector.sink.SinkWriter;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 public abstract class EventTimeExtractor<T> implements Serializable {
 
-    public abstract Long getEventTime(T element, SinkWriter.Context context);
+    public abstract long getEventTime(T element, SinkWriter.Context context);
+
+    public abstract String getTimeColumn();
+
+    public abstract TimeUnit getSegmentTimeUnit();
 }

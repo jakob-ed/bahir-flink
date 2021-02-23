@@ -41,8 +41,8 @@ import java.util.concurrent.Callable;
 @CommandLine.Command(name = "FlinkApp", description = "Starts the benchmark app.")
 public class FlinkApp implements Callable<Integer> {
 
-    private String PINOT_CONTROLLER_HOST = "pinot-cluster";
-    private String PINOT_CONTROLLER_PORT = "9000";
+    public static String PINOT_CONTROLLER_HOST = "pinot-cluster";
+    public static String PINOT_CONTROLLER_PORT = "9000";
 
 
     @CommandLine.Option(names = "--parallelism", required = true,
@@ -52,6 +52,10 @@ public class FlinkApp implements Callable<Integer> {
     @CommandLine.Option(names = "--segmentSize", required = true,
             description = "The number of tuples per segment.")
     private Integer segmentSize;
+
+    @CommandLine.Option(names = "--checkpointingInterval", required = true,
+            description = "The Flink checkpointing interval.")
+    private Long checkpointingInterval;
 
     @CommandLine.Option(names = "--port", required = true, description = "The source port.")
     private Integer port;
@@ -65,14 +69,10 @@ public class FlinkApp implements Callable<Integer> {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
         env.setParallelism(this.parallelism);
-        env.enableCheckpointing(10000);
+        env.enableCheckpointing(this.checkpointingInterval);
 
         DataStream<BenchmarkEvent> dataStream = this.setupSource(env)
-                .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class))
-                .map(message -> {
-                    System.out.println("Received tuple @Flink " + message.toString());
-                    return message;
-                });
+                .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class));
         this.setupSink(dataStream);
 
         // Wait before trying to connect to the Pinot controller

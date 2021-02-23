@@ -34,16 +34,16 @@ import java.util.concurrent.Callable;
 public class DataGenerator implements Callable<Integer> {
 
     @CommandLine.Option(names = "--numTuples", required = true, description = "The overall number of tuples to send.")
-    private int numTuples;
+    private Integer numTuples;
 
     @CommandLine.Option(names = "--sleepTime", required = true, description = "Time to sleep between tuple send.")
-    private long sleepTime;
+    private Long sleepTime;
 
     @CommandLine.Option(names = "--bufferSize", required = true, description = "Size of tuples buffer.")
-    private int bufferSize;
+    private Integer bufferSize;
 
     @CommandLine.Option(names = "--port", required = true, description = "The port.")
-    private int port;
+    private Integer port;
 
 
     @Override

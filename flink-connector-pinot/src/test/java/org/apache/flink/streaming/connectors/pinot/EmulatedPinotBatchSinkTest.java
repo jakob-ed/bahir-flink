@@ -70,7 +70,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
                 Stream.of(
                         "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
                         "Ten", "Eleven", "Twelve")
-                        .map(SingleColumnTableRow::new)
+                        .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
                         .collect(Collectors.toList());
 
         // Create test stream
@@ -81,55 +81,10 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
         SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
 
-        // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
-                .name("Pinot sink");
-
-        // Run
-        env.execute();
-
-        TimeUnit.MILLISECONDS.sleep(500);
-
-        // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
-
-        assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
-
-        // Check output strings
-        List<String> output = IntStream.range(0, resultSet.getRowCount())
-                .mapToObj(i -> resultSet.getString(i, 0))
-                .collect(Collectors.toList());
-
-        for (SingleColumnTableRow test : input) {
-            assertTrue("Missing " + test.getCol1(), output.contains(test.getCol1()));
-        }
-    }
-
-    @Test
-    public void recoverFromFailure() throws Exception {
-
-
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
-        env.setParallelism(2);
-
-        List<SingleColumnTableRow> input =
-                Stream.of(
-                        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                        "Ten", "Eleven", "Twelve")
-                        .map(SingleColumnTableRow::new)
-                        .collect(Collectors.toList());
-
-        // Create test stream
-        DataStream<SingleColumnTableRow> theData =
-                env.fromCollection(input)
-                        .name("Test input");
-
-        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
-        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
+        EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, segmentNameGenerator, fsAdapter))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run

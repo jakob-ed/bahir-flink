@@ -20,9 +20,21 @@ package org.apache.flink.streaming.connectors.pinot.benchmark;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.EventTimeExtractor;
 
+import java.util.concurrent.TimeUnit;
+
 public class BenchmarkEventTimeExtractor extends EventTimeExtractor<BenchmarkEvent> {
     @Override
-    public Long getEventTime(BenchmarkEvent element, SinkWriter.Context context) {
+    public long getEventTime(BenchmarkEvent element, SinkWriter.Context context) {
         return element.getTs();
+    }
+
+    @Override
+    public String getTimeColumn() {
+        return "timestamp";
+    }
+
+    @Override
+    public TimeUnit getSegmentTimeUnit() {
+        return TimeUnit.MILLISECONDS;
     }
 }

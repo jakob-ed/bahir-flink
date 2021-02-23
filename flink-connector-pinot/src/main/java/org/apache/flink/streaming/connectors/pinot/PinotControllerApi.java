@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
@@ -34,6 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -86,6 +89,49 @@ public class PinotControllerApi {
         HttpDelete httpdelete = new HttpDelete(this.controllerHostPort + path);
         LOG.info("Sending DELETE request to {}", path);
         return this.execute(httpdelete);
+    }
+
+    private List<String> toListOfString(JsonNode jsonNode) {
+        List<String> result = new ArrayList<>();
+        for (int j = 0; j < jsonNode.size(); j++) {
+            String segmentName = jsonNode.get(j).asText();
+            result.add(segmentName);
+        }
+        return result;
+    }
+
+    public List<String> getSegmentNames(String tableName) throws IOException {
+        List<String> segmentNames = new ArrayList<>();
+        ApiResponse res = this.get(String.format("/segments/%s", tableName));
+
+        if (res.statusLine.getStatusCode() != 200) {
+            throw new PinotControllerApiException(res.responseBody);
+        }
+
+        JsonNode parsedResponse = JsonUtils.stringToJsonNode(res.responseBody);
+        for (int i = 0; i < parsedResponse.size(); i++) {
+            JsonNode item = parsedResponse.get(i);
+            if (item.has("OFFLINE")) {
+                List<String> extracted = this.toListOfString(item.get("OFFLINE"));
+                segmentNames.addAll(extracted);
+            }
+            if (item.has("REALTIME")) {
+                List<String> extracted = this.toListOfString(item.get("REALTIME"));
+                segmentNames.addAll(extracted);
+            }
+        }
+
+        return segmentNames;
+    }
+
+    public JsonNode getSegmentMetadata(String tableName, String segmentName) throws IOException {
+        ApiResponse res = this.get(String.format("/segments/%s/%s/metadata", tableName, segmentName));
+
+        if (res.statusLine.getStatusCode() != 200) {
+            throw new PinotControllerApiException(res.responseBody);
+        }
+
+        return JsonUtils.stringToJsonNode(res.responseBody);
     }
 
     public boolean tableHasSegment(String tableName, String segmentName) throws IOException {

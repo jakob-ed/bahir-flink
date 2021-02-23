@@ -23,18 +23,20 @@ import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
+import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, Void> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
+    private static final Logger LOG = LoggerFactory.getLogger("PinotSinkWriter");
 
     private final Integer rowsPerSegment;
     private EventTimeExtractor<IN> eventTimeExtractor;
@@ -57,14 +59,19 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
 
     @Override
     public List<PinotSinkCommittable> prepareCommit(boolean flush) throws IOException {
-        // TODO: respect flush argument
+        List<PinotWriterSegment<IN>> segmentsToCommit = this.activeSegments.stream()
+                .filter(s -> flush || !s.acceptsElements())
+                .collect(Collectors.toList());
+        LOG.info("Identified {} segments to commit", segmentsToCommit.size());
+
         LOG.info("Creating committables...");
         List<PinotSinkCommittable> committables = new ArrayList<>();
-        for (final PinotWriterSegment<IN> segment : this.activeSegments) {
+        for (final PinotWriterSegment<IN> segment : segmentsToCommit) {
             committables.add(segment.prepareCommit());
         }
         LOG.info("Created {} committables", committables.size());
-        this.activeSegments.clear();
+
+        this.activeSegments.removeAll(segmentsToCommit);
         return committables;
     }
 

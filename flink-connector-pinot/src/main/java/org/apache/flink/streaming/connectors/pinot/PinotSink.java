@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -87,7 +88,9 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
 
     @Override
     public Optional<GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable>> createGlobalCommitter() {
-        PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(this.pinotControllerHost, this.pinotControllerPort, this.tableName, this.segmentNameGenerator);
+        String timeColumnName = eventTimeExtractor.getTimeColumn();
+        TimeUnit segmentTimeUnit = eventTimeExtractor.getSegmentTimeUnit();
+        PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(this.pinotControllerHost, this.pinotControllerPort, this.tableName, this.segmentNameGenerator, timeColumnName, segmentTimeUnit);
         return Optional.of(committer);
     }
 
