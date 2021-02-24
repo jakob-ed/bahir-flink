@@ -22,14 +22,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class BenchmarkEvent {
     private String value;
     private String key;
-    private long ts;
+    private long eventTime;
+    private long flinkSourceTime;
 
     public BenchmarkEvent(@JsonProperty(value = "value", required = true) String value,
                           @JsonProperty(value = "key", required = true) String key,
-                          @JsonProperty(value = "ts", required = true) long ts) {
+                          @JsonProperty(value = "eventTime", required = true) long eventTime,
+                          @JsonProperty(value = "flinkSourceTime", required = true) long flinkSourceTime) {
         this.value = value;
         this.key = key;
-        this.ts = ts;
+        this.eventTime = eventTime;
+        this.flinkSourceTime = flinkSourceTime;
     }
 
     @JsonProperty("value")
@@ -42,20 +45,21 @@ public class BenchmarkEvent {
     }
 
     @JsonProperty("key")
-    public String getKey() {
-        return key;
-    }
+    public String getKey() { return key; }
 
     public void setKey(String key) {
         this.key = key;
     }
 
-    @JsonProperty("ts")
-    public long getTs() {
-        return ts;
+    @JsonProperty("eventTime")
+    public long getEventTime() { return eventTime; }
+
+    public void setEventTime(long eventTime) {
+        this.eventTime = eventTime;
     }
 
-    public void setTs(long ts) {
-        this.ts = ts;
-    }
+    @JsonProperty("flinkSourceTime")
+    public long getFlinkSourceTime() { return flinkSourceTime; }
+
+    public void setFlinkSourceTime(long flinkSourceTime) { this.flinkSourceTime = flinkSourceTime; }
 }

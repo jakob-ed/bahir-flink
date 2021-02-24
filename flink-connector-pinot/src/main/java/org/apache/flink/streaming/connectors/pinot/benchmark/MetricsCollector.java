@@ -19,6 +19,7 @@ package org.apache.flink.streaming.connectors.pinot.benchmark;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.streaming.connectors.pinot.PinotControllerApi;
+import org.apache.pinot.client.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -31,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 @CommandLine.Command(name = "MetricsCollector", mixinStandardHelpOptions = true,
@@ -57,7 +59,7 @@ public class MetricsCollector implements Callable<Integer> {
 
     private File csvOutputFile;
 
-    private void writeToCsv(Map<String, Metrics> collectedSegments) throws IOException {
+    private void writeSegmentMetricsToCsv(Map<String, Metrics> collectedSegments) throws IOException {
         if (csvOutputFile.exists()) {
             csvOutputFile.delete();
         }
@@ -71,14 +73,44 @@ public class MetricsCollector implements Callable<Integer> {
         LOG.info("Successfully written collected metrics to {}", csvOutputFile.getAbsolutePath());
     }
 
+    private void fetchAndWriteEventTimes(String benchmarkId) throws Exception {
+        String broker = FlinkApp.PINOT_CONTROLLER_HOST + ":8000";
+        Connection pinotConnection = ConnectionFactory.fromHostList(broker);
+        String query = String.format("SELECT eventTime, flinkSourceTime FROM %s LIMIT %d", FlinkApp.PinotTableConfig.TABLE_NAME, numTuples);
+
+        LOG.info("Now fetching event times from broker {} ...", broker);
+        Request pinotClientRequest = new Request("sql", query);
+        ResultSetGroup pinotResultSetGroup = pinotConnection.execute(pinotClientRequest);
+
+        if (pinotResultSetGroup.getResultSetCount() != 1) {
+            throw new Exception("Could not find any data in Pinot cluster.");
+        }
+
+        File eventCsvFile = new File(METRICS_CSV_DIRECTORY + benchmarkId + "__event-times.csv");
+        LOG.info("Now writing event times to {} ...", eventCsvFile.getAbsolutePath());
+        try (PrintWriter pw = new PrintWriter(eventCsvFile)) {
+            pw.println("eventTime,flinkSinkTime");
+            for (int i = 0; i < pinotResultSetGroup.getResultSetCount(); i++) {
+                ResultSet resultSet = pinotResultSetGroup.getResultSet(i);
+                IntStream.range(0, resultSet.getRowCount())
+                        .mapToObj(rowIdx -> resultSet.getString(rowIdx, 0) + "," + resultSet.getString(rowIdx, 1))
+                        .forEach(pw::println);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            LOG.error("Error while writing event times to {}. {}", eventCsvFile.getAbsolutePath(), e.getMessage());
+        }
+        LOG.info("Successfully written event times to {}.", eventCsvFile.getAbsolutePath());
+    }
+
     @Override
     public Integer call() throws Exception {
         LOG.info("Startup delay of {} ms. Sleeping now...", delay);
         Thread.sleep(delay);
 
-        String currentTime = LocalDateTime.now()
+        String benchmarkId = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd__HH-mm-ss"));
-        csvOutputFile = new File(METRICS_CSV_DIRECTORY + currentTime + "__metrics.csv");
+        csvOutputFile = new File(METRICS_CSV_DIRECTORY + benchmarkId + "__metrics.csv");
         LOG.info("Using file {} to write collected metrics to", csvOutputFile.getAbsolutePath());
 
         PinotControllerApi pinotControllerApi = new PinotControllerApi(FlinkApp.PINOT_CONTROLLER_HOST, FlinkApp.PINOT_CONTROLLER_PORT);
@@ -98,11 +130,12 @@ public class MetricsCollector implements Callable<Integer> {
                 collectedSegments.put(segmentName, Metrics.fromJsonNode(metadataJson));
             }
 
-            this.writeToCsv(collectedSegments);
+            this.writeSegmentMetricsToCsv(collectedSegments);
             Thread.sleep(this.checkpointingInterval);
         }
 
-        this.writeToCsv(collectedSegments);
+        this.writeSegmentMetricsToCsv(collectedSegments);
+        this.fetchAndWriteEventTimes(benchmarkId);
 
         return 0;
     }
@@ -128,9 +161,10 @@ class Metrics {
     }
 
     String toCsvRow() {
-        return Stream.of(Arrays.asList(segmentName, segmentStartTime, segmentEndTime, segmentCreationTime, segmentPushTime, segmentTotalDocs))
+        String arrayString = Stream.of(Arrays.asList(segmentName, segmentStartTime, segmentEndTime, segmentCreationTime, segmentPushTime, segmentTotalDocs))
                 .map(Objects::toString)
                 .collect(Collectors.joining(","));
+        return arrayString.substring(1, arrayString.length() - 1);
     }
 
     static Metrics fromJsonNode(JsonNode json) {

@@ -72,7 +72,11 @@ public class FlinkApp implements Callable<Integer> {
         env.enableCheckpointing(this.checkpointingInterval);
 
         DataStream<BenchmarkEvent> dataStream = this.setupSource(env)
-                .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class));
+                .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class))
+                .map(message -> {
+                    message.setFlinkSourceTime(System.currentTimeMillis());
+                    return message;
+                });
         this.setupSink(dataStream);
 
         // Wait before trying to connect to the Pinot controller
@@ -158,7 +162,8 @@ public class FlinkApp implements Callable<Integer> {
             schema.setSchemaName(SCHEMA_NAME);
             schema.addField(new DimensionFieldSpec("key", FieldSpec.DataType.STRING, true));
             schema.addField(new DimensionFieldSpec("value", FieldSpec.DataType.STRING, true));
-            schema.addField(new DimensionFieldSpec("ts", FieldSpec.DataType.STRING, true));
+            schema.addField(new DimensionFieldSpec("eventTime", FieldSpec.DataType.LONG, true));
+            schema.addField(new DimensionFieldSpec("flinkSourceTime", FieldSpec.DataType.LONG, true));
             return schema;
         }
     }

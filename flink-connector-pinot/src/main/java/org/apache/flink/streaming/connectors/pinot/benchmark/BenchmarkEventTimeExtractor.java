@@ -25,12 +25,12 @@ import java.util.concurrent.TimeUnit;
 public class BenchmarkEventTimeExtractor extends EventTimeExtractor<BenchmarkEvent> {
     @Override
     public long getEventTime(BenchmarkEvent element, SinkWriter.Context context) {
-        return element.getTs();
+        return element.getEventTime();
     }
 
     @Override
     public String getTimeColumn() {
-        return "ts";
+        return "eventTime";
     }
 
     @Override
