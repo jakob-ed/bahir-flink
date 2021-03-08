@@ -22,7 +22,7 @@ import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.connectors.pinot.PinotSegmentNameGenerator;
+import org.apache.flink.streaming.connectors.pinot.external.PinotSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.PinotSink;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
@@ -57,8 +57,11 @@ public class FlinkApp implements Callable<Integer> {
             description = "The Flink checkpointing interval.")
     private Long checkpointingInterval;
 
-    @CommandLine.Option(names = "--port", required = true, description = "The source port.")
-    private Integer port;
+    @CommandLine.Option(names = "--sourceHost", required = true, description = "The source host.")
+    private String sourceHost;
+
+    @CommandLine.Option(names = "--sourcePort", required = true, description = "The source port.")
+    private Integer sourcePort;
 
     @CommandLine.Option(names = "--delay", required = true, description = "Startup delay.")
     private Long delay;
@@ -72,6 +75,7 @@ public class FlinkApp implements Callable<Integer> {
         env.enableCheckpointing(this.checkpointingInterval);
 
         DataStream<BenchmarkEvent> dataStream = this.setupSource(env)
+                .rebalance()
                 .map(message -> JsonUtils.stringToObject(message, BenchmarkEvent.class))
                 .map(message -> {
                     message.setFlinkSourceTime(System.currentTimeMillis());
@@ -90,8 +94,8 @@ public class FlinkApp implements Callable<Integer> {
 
     private DataStream<String> setupSource(StreamExecutionEnvironment env) {
         DataStream<String> socketSource = null;
-        for (String host : Collections.singletonList("data-generator")) {
-            for (int port : Collections.singletonList(this.port)) {
+        for (String host : Collections.singletonList(this.sourceHost)) {
+            for (int port : Collections.singletonList(this.sourcePort)) {
                 DataStream<String> socketSource_i = env.socketTextStream(host, port);
                 socketSource = socketSource == null ? socketSource_i : socketSource.union(socketSource_i);
             }

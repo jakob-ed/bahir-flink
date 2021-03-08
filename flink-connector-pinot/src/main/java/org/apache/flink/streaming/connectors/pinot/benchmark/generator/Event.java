@@ -22,6 +22,8 @@ import org.apache.flink.streaming.connectors.pinot.benchmark.BenchmarkEvent;
 import org.apache.pinot.spi.utils.JsonUtils;
 
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -50,10 +52,14 @@ public class Event implements Serializable {
     public String generateJson() throws JsonProcessingException {
 
         //geo
-        String geo = null;
-        geoIndex = geoIndex % geoList.length;
-        geo = geoList[geoIndex];
-        geoIndex++;
+//        String geo = null;
+//        geoIndex = geoIndex % geoList.length;
+//        geo = geoList[geoIndex];
+//        geoIndex++;
+
+        byte[] array = new byte[7]; // 0.15 -> 57, 0.25 -> 155
+        new Random().nextBytes(array);
+        String geo = new String(array, StandardCharsets.UTF_8);
 
         //price
         float minX = 5.0f;

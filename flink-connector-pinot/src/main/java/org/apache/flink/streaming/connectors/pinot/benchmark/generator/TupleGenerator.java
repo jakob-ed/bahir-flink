@@ -55,7 +55,7 @@ public class TupleGenerator extends Thread {
         int tempVal = 0;
         if (sleepTime != 0) {
             for (int i = 0; i < tupleCount; ) {
-                if (i % 100 == 0) {
+                if (i % 1000 == 0) {
                     Thread.sleep(sleepTime);
                 }
                 for (int b = 0; b < 1 && i < tupleCount; b++, i++) {

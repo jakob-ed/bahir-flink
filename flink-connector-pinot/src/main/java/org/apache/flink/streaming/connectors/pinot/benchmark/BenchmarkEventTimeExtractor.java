@@ -18,7 +18,7 @@
 package org.apache.flink.streaming.connectors.pinot.benchmark;
 
 import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.streaming.connectors.pinot.EventTimeExtractor;
+import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 
 import java.util.concurrent.TimeUnit;
 

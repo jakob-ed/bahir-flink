@@ -22,14 +22,16 @@ services:
       dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
         "FlinkApp",
-        "--port", "5001",
+        "--sourceHost", "data-generator",
+        "--sourcePort", "5001",
         "--parallelism", "1",
-        "--segmentSize", "10000",
-        "--checkpointingInterval", "20000",  # Set checkpointing interval to 30s
+        "--segmentSize", "50000", # 50k
+        "--checkpointingInterval", "30000",  # Set checkpointing interval to 30s
         "--delay", "60000" # Wait 60s before trying to connect to pinot-cluster
     ]
     ports:
       - "8081:8081"
+    cpuset: "0,1,2,3"
     depends_on:
       - data-generator
       - pinot-cluster
@@ -43,13 +45,14 @@ services:
       dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
         "DataGenerator",
-        "--numTuples", "1000000",
-        "--sleepTime", "10", # in milliseconds
-        "--bufferSize", "2000",
+        "--numTuples", "6000000", # 10 M
+        "--sleepTime", "20", # in milliseconds
+        "--bufferSize", "10000000", # 10M
         "--port", "5001"
     ]
     ports:
       - "5001:5001"
+    cpuset: "4"
     networks:
       - network
 
@@ -60,13 +63,14 @@ services:
       dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
         "MetricsCollector",
-        "--numTuples", "1000000",
-        "--segmentSize", "10000",
-        "--checkpointingInterval", "20000",  # Set checkpointing interval to 30s
+        "--numTuples", "6000000", # 10 M
+        "--segmentSize", "50000", # 50k
+        "--checkpointingInterval", "30000",  # Set checkpointing interval to 30s
         "--delay", "80000" # Wait 80s before trying to connect to pinot-cluster
     ]
     volumes:
       - ~/collected-metrics:/collected-metrics
+    cpuset: "5"
     depends_on:
       - pinot-cluster
       - flink-benchmark
@@ -79,6 +83,7 @@ services:
     ports:
       - "9000:9000"
       - "8000:8000"
+    cpuset: "6,7"
     networks:
       - network
 
