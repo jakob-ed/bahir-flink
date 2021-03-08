@@ -23,11 +23,13 @@ import com.spotify.docker.client.exceptions.DockerException;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
+import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
+import org.apache.pinot.spi.utils.JsonUtils;
 import org.junit.BeforeClass;
 import org.junit.jupiter.api.AfterAll;
 
@@ -84,9 +86,13 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
         }
 
         @JsonProperty("timestamp")
-        public Long getTimestamp() { return this._timestamp; }
+        public Long getTimestamp() {
+            return this._timestamp;
+        }
 
-        public void setTimestamp(Long timestamp) { this._timestamp = timestamp; }
+        public void setTimestamp(Long timestamp) {
+            this._timestamp = timestamp;
+        }
     }
 
     static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
@@ -104,6 +110,14 @@ public class PinotUnitTestBase extends TestLogger implements Serializable {
         @Override
         public TimeUnit getSegmentTimeUnit() {
             return TimeUnit.MILLISECONDS;
+        }
+    }
+
+    static class SingleColumnTableRowSerializer extends JsonSerializer<SingleColumnTableRow> {
+
+        @Override
+        public String toJson(SingleColumnTableRow element) {
+            return JsonUtils.objectToJsonNode(element).toString();
         }
     }
 

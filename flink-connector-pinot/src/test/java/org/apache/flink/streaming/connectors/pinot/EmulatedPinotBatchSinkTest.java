@@ -23,6 +23,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
+import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
@@ -82,11 +83,12 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
 
         PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter();
+        JsonSerializer<SingleColumnTableRow> jsonSerializer = new SingleColumnTableRowSerializer();
 
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", eventTimeExtractor, segmentNameGenerator, fsAdapter))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run

@@ -25,6 +25,7 @@ import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittabl
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommitter;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
+import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
@@ -53,6 +54,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     private final String tableName;
     private final int maxRowsPerSegment;
     private final String tempDirPrefix;
+    private final JsonSerializer<IN> jsonSerializer;
     private final SegmentNameGenerator segmentNameGenerator;
     private final FileSystemAdapter fsAdapter;
     private final EventTimeExtractor<IN> eventTimeExtractor;
@@ -63,11 +65,12 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param tableName            Target table's name
      * @param maxRowsPerSegment    Maximum number of rows to be stored within a Pinot segment
      * @param tempDirPrefix        Prefix for temp directories used
+     * @param jsonSerializer       Serializer used to convert elements to JSON
      * @param eventTimeExtractor   Defines the way event times are extracted from received objects
      * @param segmentNameGenerator Pinot segment name generator
      * @param fsAdapter            Filesystem adapter used to save files for sharing files across nodes
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, int maxRowsPerSegment, String tempDirPrefix, EventTimeExtractor<IN> eventTimeExtractor, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, EventTimeExtractor<IN> eventTimeExtractor, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -75,6 +78,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         checkArgument(maxRowsPerSegment > 0);
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.tempDirPrefix = checkNotNull(tempDirPrefix);
+        this.jsonSerializer = checkNotNull(jsonSerializer);
         this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
         this.segmentNameGenerator = checkNotNull(segmentNameGenerator);
         this.fsAdapter = checkNotNull(fsAdapter);
@@ -88,7 +92,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      */
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
-        return new PinotSinkWriter<>(context.getSubtaskId(), this.maxRowsPerSegment, this.eventTimeExtractor, this.tempDirPrefix, this.fsAdapter);
+        return new PinotSinkWriter<>(context.getSubtaskId(), this.maxRowsPerSegment, this.eventTimeExtractor, this.tempDirPrefix, this.jsonSerializer, this.fsAdapter);
     }
 
     /**

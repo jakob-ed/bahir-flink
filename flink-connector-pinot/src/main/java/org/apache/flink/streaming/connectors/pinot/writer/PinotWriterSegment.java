@@ -17,10 +17,9 @@
 
 package org.apache.flink.streaming.connectors.pinot.writer;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
+import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
-import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,11 +48,12 @@ public class PinotWriterSegment<IN> implements Serializable {
 
     private final int maxRowsPerSegment;
     private final String tempDirPrefix;
+    private final JsonSerializer<IN> jsonSerializer;
     private final FileSystemAdapter fsAdapter;
 
     private boolean acceptsElements = true;
 
-    private List<IN> elements;
+    private final List<IN> elements;
     private File dataFile;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
@@ -61,12 +61,14 @@ public class PinotWriterSegment<IN> implements Serializable {
     /**
      * @param maxRowsPerSegment Maximum number of rows to be stored within a Pinot segment
      * @param tempDirPrefix     Prefix for temp directories used
+     * @param jsonSerializer    Serializer used to convert elements to JSON
      * @param fsAdapter         Filesystem adapter used to save files for sharing files across nodes
      */
-    protected PinotWriterSegment(int maxRowsPerSegment, String tempDirPrefix, FileSystemAdapter fsAdapter) {
+    protected PinotWriterSegment(int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         checkArgument(maxRowsPerSegment > 0L);
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.tempDirPrefix = checkNotNull(tempDirPrefix);
+        this.jsonSerializer = checkNotNull(jsonSerializer);
         this.fsAdapter = checkNotNull(fsAdapter);
         this.elements = new ArrayList<>();
     }
@@ -123,16 +125,7 @@ public class PinotWriterSegment<IN> implements Serializable {
 
         // Stores row items in JSON format on disk
         List<String> json = this.elements.stream()
-                .map(b -> {
-                    // TODO: serializer
-                    try {
-                        JsonNode jsonNode = JsonUtils.objectToJsonNode(b);
-                        return jsonNode;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e.getMessage());
-                    }
-                })
-                .map(JsonNode::toString)
+                .map(this.jsonSerializer::toJson)
                 .collect(Collectors.toList());
 
         String FILE_NAME = "data.json";

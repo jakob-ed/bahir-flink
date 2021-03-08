@@ -20,8 +20,9 @@ package org.apache.flink.streaming.connectors.pinot.writer;
 
 import com.google.common.collect.Iterables;
 import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
+import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
+import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private final int maxRowsPerSegment;
     private EventTimeExtractor<IN> eventTimeExtractor;
     private final String tempDirPrefix;
+    private final JsonSerializer<IN> jsonSerializer;
 
     private final List<PinotWriterSegment<IN>> activeSegments;
     private final FileSystemAdapter fsAdapter;
@@ -56,13 +58,15 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      * @param maxRowsPerSegment  Maximum number of rows to be stored within a Pinot segment
      * @param eventTimeExtractor Defines the way event times are extracted from received objects
      * @param tempDirPrefix      Prefix for temp directories used
+     * @param jsonSerializer     Serializer used to convert elements to JSON
      * @param fsAdapter          Filesystem adapter used to save files for sharing files across nodes
      */
-    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, String tempDirPrefix, FileSystemAdapter fsAdapter) {
+    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         this.subtaskId = subtaskId;
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
         this.tempDirPrefix = checkNotNull(tempDirPrefix);
+        this.jsonSerializer = checkNotNull(jsonSerializer);
         this.fsAdapter = checkNotNull(fsAdapter);
         this.activeSegments = new ArrayList<>();
     }
@@ -113,7 +117,7 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     private PinotWriterSegment<IN> getOrCreateInProgressSegment() {
         final PinotWriterSegment<IN> latestSegment = Iterables.getLast(this.activeSegments, null);
         if (latestSegment == null || !latestSegment.acceptsElements()) {
-            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(this.maxRowsPerSegment, this.tempDirPrefix, this.fsAdapter);
+            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(this.maxRowsPerSegment, this.tempDirPrefix, this.jsonSerializer, this.fsAdapter);
             this.activeSegments.add(inProgressSegment);
             return inProgressSegment;
         }
