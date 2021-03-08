@@ -22,10 +22,12 @@ import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
+import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
+import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.pinot.client.ResultSet;
-import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.junit.jupiter.api.AfterEach;
@@ -78,13 +80,13 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
                 env.fromCollection(input)
                         .name("Test input");
 
-        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(TABLE_NAME, "flink-connector");
-        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-test");
+        PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
+        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter();
 
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, eventTimeExtractor, segmentNameGenerator, fsAdapter))
+        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run

@@ -18,27 +18,20 @@
 package org.apache.flink.streaming.connectors.pinot.filesystem;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 
+/**
+ * The LocalFileSystemAdapter is used when sharing files via the local filesystem.
+ * Keep in mind that using this FileSystemAdapter requires running the Flink app on a single node.
+ */
 public class LocalFileSystemAdapter extends FileSystemAdapter {
 
-    public LocalFileSystemAdapter(String prefix) {
-        super(prefix);
+    @Override
+    public String copyToSharedFileSystem(File file) {
+        return file.getAbsolutePath();
     }
 
     @Override
-    public Path createTempDirectory() throws IOException {
-        return Files.createTempDirectory(this.prefix);
-    }
-
-    @Override
-    public File writeToFile(Path dir, String fileName, List<String> content) throws IOException {
-        File dataFile = new File(dir.toAbsolutePath() + "/" + fileName);
-        Files.write(dataFile.toPath(), content, Charset.defaultCharset());
-        return dataFile;
+    public File copyToLocalFile(String path) {
+        return new File(path);
     }
 }

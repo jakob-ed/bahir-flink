@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.spotify.docker.client.exceptions.DockerException;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
+import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;

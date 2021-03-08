@@ -18,30 +18,35 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
-import java.io.File;
 import java.io.Serializable;
 import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * Global committable references all data files that will be committed during checkpointing.
+ */
 public class PinotSinkGlobalCommittable implements Serializable {
-    private final List<File> dataFiles;
+    private final List<String> dataFilePaths;
     private final long minTimestamp;
     private final long maxTimestamp;
 
-    public PinotSinkGlobalCommittable(List<File> dataFiles, long minTimestamp, long maxTimestamp) {
-        this.dataFiles = checkNotNull(dataFiles);
+    /**
+     * @param dataFilePaths List of paths to data files on shared file system
+     * @param minTimestamp  Minimum timestamp of all objects in all data files
+     * @param maxTimestamp  Maximum timestamp of all objects in all data files
+     */
+    public PinotSinkGlobalCommittable(List<String> dataFilePaths, long minTimestamp, long maxTimestamp) {
+        this.dataFilePaths = checkNotNull(dataFilePaths);
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
-    public List<File> getDataFiles() {
-        return dataFiles;
+    public List<String> getDataFilePaths() {
+        return dataFilePaths;
     }
 
-    public long getMinTimestamp() {
-        return minTimestamp;
-    }
+    public long getMinTimestamp() { return minTimestamp; }
 
     public long getMaxTimestamp() {
         return maxTimestamp;

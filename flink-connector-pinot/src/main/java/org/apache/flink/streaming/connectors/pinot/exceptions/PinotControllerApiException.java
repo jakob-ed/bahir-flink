@@ -20,6 +20,9 @@ package org.apache.flink.streaming.connectors.pinot.exceptions;
 
 import java.io.IOException;
 
+/**
+ * Pinot controller API exception wrapper
+ */
 public class PinotControllerApiException extends IOException {
 
     public PinotControllerApiException(String reason) {

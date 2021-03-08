@@ -15,32 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot;
+package org.apache.flink.streaming.connectors.pinot.segment.name;
+
+import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
-public class PinotSinkUtils {
-    @Nullable
-    public static Long getMin(@Nullable Long first, @Nullable Long second) {
-        if (first == null) {
-            return second;
-        }
-        if (second == null) {
-            return first;
-        }
+/**
+ * Defines the segment name generator interface that is used to generate segment names.
+ */
+public abstract class PinotSinkSegmentNameGenerator implements SegmentNameGenerator, Serializable {
 
-        return Math.min(first, second);
-    }
-
-    @Nullable
-    public static Long getMax(@Nullable Long first, @Nullable Long second) {
-        if (first == null) {
-            return second;
-        }
-        if (second == null) {
-            return first;
-        }
-
-        return Math.max(first, second);
-    }
+    @Override
+    public abstract String generateSegmentName(int sequenceId, @Nullable Object minTimeValue, @Nullable Object maxTimeValue);
 }

@@ -18,24 +18,32 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
-import java.io.File;
 import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * The PinotSinkCommittable is required for sharing committables with the
+ * {@link PinotSinkGlobalCommitter} instance
+ */
 public class PinotSinkCommittable implements Serializable {
-    private final File dataFile;
+    private final String dataFilePath;
     private final long minTimestamp;
     private final long maxTimestamp;
 
-    public PinotSinkCommittable(File dataFile, long minTimestamp, long maxTimestamp) {
-        this.dataFile = checkNotNull(dataFile);
+    /**
+     * @param dataFilePath Path referencing a file on the shared filesystem defined via {@link org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter}
+     * @param minTimestamp The minimum timestamp of all the elements contained in {@link #dataFilePath}
+     * @param maxTimestamp The maximum timestamp of all the elements contained in {@link #dataFilePath}
+     */
+    public PinotSinkCommittable(String dataFilePath, long minTimestamp, long maxTimestamp) {
+        this.dataFilePath = checkNotNull(dataFilePath);
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
-    public File getDataFile() {
-        return dataFile;
+    public String getDataFilePath() {
+        return dataFilePath;
     }
 
     public long getMinTimestamp() {

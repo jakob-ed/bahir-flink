@@ -40,6 +40,9 @@ import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * Helpers to interact with the Pinot controller via its public API.
+ */
 public class PinotControllerApi {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerApi.class);

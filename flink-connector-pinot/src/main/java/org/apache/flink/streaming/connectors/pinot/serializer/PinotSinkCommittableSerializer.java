@@ -22,8 +22,9 @@ import org.apache.commons.lang3.SerializationUtils;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 
-import java.io.IOException;
-
+/**
+ * Serializer for {@link PinotSinkCommittable}
+ */
 public class PinotSinkCommittableSerializer implements SimpleVersionedSerializer<PinotSinkCommittable> {
 
     private static final int CURRENT_VERSION = 0;
@@ -34,12 +35,12 @@ public class PinotSinkCommittableSerializer implements SimpleVersionedSerializer
     }
 
     @Override
-    public byte[] serialize(PinotSinkCommittable pinotSinkCommittable) throws IOException {
+    public byte[] serialize(PinotSinkCommittable pinotSinkCommittable) {
         return SerializationUtils.serialize(pinotSinkCommittable);
     }
 
     @Override
-    public PinotSinkCommittable deserialize(int i, byte[] bytes) throws IOException {
+    public PinotSinkCommittable deserialize(int i, byte[] bytes) {
         return SerializationUtils.deserialize(bytes);
     }
 }

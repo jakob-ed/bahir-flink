@@ -16,18 +16,36 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot;
+package org.apache.flink.streaming.connectors.pinot.external;
 
 import org.apache.flink.api.connector.sink.SinkWriter;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
-public abstract class EventTimeExtractor<T> implements Serializable {
+/**
+ * Defines the interface for event time extractors
+ *
+ * @param <IN> Type of incoming elements
+ */
+public abstract class EventTimeExtractor<IN> implements Serializable {
 
-    public abstract long getEventTime(T element, SinkWriter.Context context);
+    /**
+     * Extracts event time from incoming elements.
+     *
+     * @param element Incoming element
+     * @param context Context of SinkWriter
+     * @return timestamp
+     */
+    public abstract long getEventTime(IN element, SinkWriter.Context context);
 
+    /**
+     * @return Name of column in Pinot target table that contains the timestamp.
+     */
     public abstract String getTimeColumn();
 
+    /**
+     * @return Unit of the time column in the Pinot target table.
+     */
     public abstract TimeUnit getSegmentTimeUnit();
 }
