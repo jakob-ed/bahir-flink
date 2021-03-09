@@ -22,11 +22,7 @@ import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.connectors.pinot.external.PinotSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.PinotSink;
-import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
-import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
-import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -105,11 +101,14 @@ public class FlinkApp implements Callable<Integer> {
     }
 
     private void setupSink(DataStream<BenchmarkEvent> dataStream) {
-        SegmentNameGenerator segmentNameGenerator = new PinotSegmentNameGenerator(PinotTableConfig.TABLE_NAME, "flink-connector");
-        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter("flink-pinot-connector-benchmark");
+        PinotSink<BenchmarkEvent> pinotSink = new PinotSink.Builder<BenchmarkEvent>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, PinotTableConfig.TABLE_NAME)
+                .withMaxRowsPerSegment(segmentSize)
+                .withEventTimeExtractor(new BenchmarkEventTimeExtractor())
+                .withSimpleSegmentNameGenerator("flink-connector")
+                .withLocalFileSystemAdapter()
+                .build();
 
-        BenchmarkEventTimeExtractor eventTimeExtractor = new BenchmarkEventTimeExtractor();
-        dataStream.sinkTo(new PinotSink<>(PINOT_CONTROLLER_HOST, PINOT_CONTROLLER_PORT, PinotTableConfig.TABLE_NAME, segmentSize, eventTimeExtractor, segmentNameGenerator, fsAdapter))
+        dataStream.sinkTo(pinotSink)
                 .name("Pinot Sink");
     }
 
