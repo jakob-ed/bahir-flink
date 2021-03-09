@@ -45,8 +45,12 @@ public class PinotTestBase extends TestLogger implements Serializable {
     private static PinotEmulatorManager.ContainerPorts containerPorts;
     protected static PinotTestHelper pinotHelper;
 
+    /**
+     * Launch the Pinot container before the first test is started.
+     * @throws InterruptedException
+     */
     @BeforeAll
-    public static void launchPinotEmulator() throws InterruptedException {
+    public static void launchPinotContainer() throws InterruptedException {
         containerPorts = PinotEmulatorManager.launchDocker();
         pinotHelper = getPinotHelper();
 
@@ -54,30 +58,56 @@ public class PinotTestBase extends TestLogger implements Serializable {
         Thread.sleep(40000);
     }
 
+    /**
+     * Terminate the Pinot container after all tests have been completed.
+     *
+     * @throws IOException
+     */
     @AfterAll
-    public static void terminatePinotEmulator() throws IOException {
+    public static void terminatePinotContainer() throws IOException {
         PinotEmulatorManager.terminateDocker();
     }
 
-    // ====================================================================================
-    // Pinot helpers
-
+    /**
+     * Creates a new instance of the {@link PinotTestHelper}.
+     *
+     * @return PinotTestHelper
+     */
     public static PinotTestHelper getPinotHelper() {
         return new PinotTestHelper(getPinotHost(), getPinotControllerPort(), getPinotBrokerPort());
     }
 
+    /**
+     * Returns the host the Pinot container is available at
+     *
+     * @return Pinot container host
+     */
     public static String getPinotHost() {
         return containerPorts.getDockerIpAddress();
     }
 
+
+    /**
+     * Returns the Pinot controller port from the container ports.
+     *
+     * @return Pinot controller port
+     */
     public static String getPinotControllerPort() {
         return containerPorts.getPinotControllerPort();
     }
 
+    /**
+     * Returns the Pinot broker port from the container ports.
+     *
+     * @return Pinot broker port
+     */
     public static String getPinotBrokerPort() {
         return containerPorts.getPinotBrokerPort();
     }
 
+    /**
+     * Class defining the elements passed to the {@link PinotSink} during the tests.
+     */
     static class SingleColumnTableRow {
 
         private String _col1;
@@ -108,6 +138,11 @@ public class PinotTestBase extends TestLogger implements Serializable {
         }
     }
 
+
+    /**
+     * EventTimeExtractor for {@link SingleColumnTableRow} used in e2e tests.
+     * Extracts the timestamp column from {@link SingleColumnTableRow}.
+     */
     static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
 
         @Override
@@ -126,6 +161,9 @@ public class PinotTestBase extends TestLogger implements Serializable {
         }
     }
 
+    /**
+     * Serializes {@link SingleColumnTableRow} to JSON.
+     */
     static class SingleColumnTableRowSerializer extends JsonSerializer<SingleColumnTableRow> {
 
         @Override
@@ -134,6 +172,9 @@ public class PinotTestBase extends TestLogger implements Serializable {
         }
     }
 
+    /**
+     * Pinot table configuration helpers.
+     */
     static class PinotTableConfig {
 
         static final String TABLE_NAME = "FLTable";

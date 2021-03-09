@@ -38,7 +38,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -57,6 +60,15 @@ public class PinotEmulatorManager {
     private static final String CONTAINER_NAME_JUNIT =
             (DOCKER_IMAGE_NAME + "_" + UNITTEST_PROJECT_ID).replaceAll("[^a-zA-Z0-9_]", "_");
 
+    // Timeout for waiting for a success response after container start up
+    private static final long MAX_RETRY_TIMEOUT = 60000; // Milliseconds
+
+    /**
+     * Launches a clean Pinot docker container.
+     *
+     * @return Container ports resulting from port mappings
+     * @throws InterruptedException
+     */
     public static ContainerPorts launchDocker() throws InterruptedException {
         DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
@@ -146,6 +158,9 @@ public class PinotEmulatorManager {
         return new ContainerPorts(dockerIpAddress, pinotControllerPort, pinotBrokerPort);
     }
 
+    /**
+     * Initiates container kill process.
+     */
     private static void startHasFailedKillEverything() {
         LOG.error("|");
         LOG.error("| ==================== ");
@@ -157,8 +172,14 @@ public class PinotEmulatorManager {
         terminateAndDiscardAnyExistingContainers(false);
     }
 
-    private static final long MAX_RETRY_TIMEOUT = 60000; // Milliseconds
-
+    /**
+     * Blocks until the Pinot container has successfully started.
+     *
+     * @param label           Label for the port to test against
+     * @param dockerIpAddress The host the container is reachable at
+     * @param port            The port to send the request to
+     * @return True if a response was received within {@code MAX_RETRY_TIMEOUT}
+     */
     private static boolean waitForOkStatus(String label, String dockerIpAddress, String port) {
         long start = System.currentTimeMillis();
         while (true) {
@@ -186,7 +207,7 @@ public class PinotEmulatorManager {
                 long now = System.currentTimeMillis();
                 if (now - start > MAX_RETRY_TIMEOUT) {
                     System.out.println(
-                            "| - Pinot Emulator at "+dockerIpAddress+":"+port+" FAILED to return an Ok status within "+MAX_RETRY_TIMEOUT+" ms "
+                            "| - Pinot Emulator at " + dockerIpAddress + ":" + port + " FAILED to return an Ok status within " + MAX_RETRY_TIMEOUT + " ms "
                     );
                     return false;
                 }
@@ -199,6 +220,14 @@ public class PinotEmulatorManager {
         }
     }
 
+    /**
+     * Extracts a public port given its container internal port.
+     *
+     * @param ports           All container ports
+     * @param internalTCPPort Internal port to get the external port for
+     * @param label           The port's label
+     * @return The external port
+     */
     private static String getPort(Ports ports, int internalTCPPort, String label) {
         Optional<Map.Entry<ExposedPort, Ports.Binding[]>> portMapping = ports.getBindings().entrySet()
                 .stream()
@@ -213,6 +242,11 @@ public class PinotEmulatorManager {
         return portMapping.get().getValue()[0].getHostPortSpec();
     }
 
+    /**
+     * Stops and removes the test container.
+     *
+     * @param warnAboutExisting Determines whether to show warn statements
+     */
     private static void terminateAndDiscardAnyExistingContainers(boolean warnAboutExisting) {
         InspectContainerResponse containerInfo;
         try {
@@ -247,9 +281,6 @@ public class PinotEmulatorManager {
                 }
             }
 
-            // We REQUIRE 100% accurate side effect free unit tests
-            // So we completely discard this one.
-
             String id = containerInfo.getId();
             // Kill container
             if (containerInfo.getState().getRunning()) {
@@ -269,6 +300,11 @@ public class PinotEmulatorManager {
         }
     }
 
+    /**
+     * Kills a possibly running test container and finally closes the docker client.
+     *
+     * @throws IOException
+     */
     public static void terminateDocker() throws IOException {
         terminateAndDiscardAnyExistingContainers(false);
 
@@ -302,6 +338,4 @@ public class PinotEmulatorManager {
             return pinotBrokerPort;
         }
     }
-
-    // ====================================================================================
 }

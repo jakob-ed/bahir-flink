@@ -49,18 +49,33 @@ public class EmulatedPinotBatchSinkTest extends PinotTestBase {
     private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
     private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
 
+    /**
+     * Create an empty test table before each test.
+     *
+     * @throws Exception
+     */
     @BeforeEach
     public void beforeEach() throws Exception {
         pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
+    /**
+     * Delete the test table after each test.
+     *
+     * @throws Exception
+     */
     @AfterEach
     public void afterEach() throws Exception {
         pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
+    /**
+     * Tests the BATCH execution of the {@link PinotSink}.
+     *
+     * @throws Exception
+     */
     @Test
-    public void testFlinkSink() throws Exception {
+    public void testBatchSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setParallelism(2);
