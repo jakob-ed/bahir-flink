@@ -27,6 +27,8 @@ import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalComm
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter;
@@ -140,5 +142,79 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     @Override
     public Optional<SimpleVersionedSerializer<Void>> getWriterStateSerializer() {
         return Optional.empty();
+    }
+
+    /**
+     *
+     * @param <IN> Type of incoming elements
+     */
+    public static class Builder<IN> {
+        String pinotControllerHost;
+        String pinotControllerPort;
+        String tableName;
+        int maxRowsPerSegment;
+        String tempDirPrefix = "flink-connector-pinot";
+        JsonSerializer<IN> jsonSerializer;
+        EventTimeExtractor<IN> eventTimeExtractor;
+        SegmentNameGenerator segmentNameGenerator;
+        FileSystemAdapter fsAdapter;
+
+        public Builder(String pinotControllerHost, String pinotControllerPort, String tableName) {
+            this.pinotControllerHost = pinotControllerHost;
+            this.pinotControllerPort = pinotControllerPort;
+            this.tableName = tableName;
+        }
+
+        public Builder<IN> withJsonSerializer(JsonSerializer<IN> jsonSerializer) {
+            this.jsonSerializer = jsonSerializer;
+            return this;
+        }
+
+        public Builder<IN> withEventTimeExtractor(EventTimeExtractor<IN> eventTimeExtractor) {
+            this.eventTimeExtractor = eventTimeExtractor;
+            return this;
+        }
+
+        public Builder<IN> withSegmentNameGenerator(SegmentNameGenerator segmentNameGenerator) {
+            this.segmentNameGenerator = segmentNameGenerator;
+            return this;
+        }
+
+        public Builder<IN> withSimpleSegmentNameGenerator(String tableName, String segmentNamePostfix) {
+            return this.withSegmentNameGenerator(new SimpleSegmentNameGenerator(tableName, segmentNamePostfix));
+        }
+
+        public Builder<IN> withFileSystemAdapter(FileSystemAdapter fsAdapter) {
+            this.fsAdapter = fsAdapter;
+            return this;
+        }
+
+        public Builder<IN> withLocalFileSystemAdapter() {
+            return this.withFileSystemAdapter(new LocalFileSystemAdapter());
+        }
+
+        public Builder<IN> withMaxRowsPerSegment(int maxRowsPerSegment) {
+            this.maxRowsPerSegment = maxRowsPerSegment;
+            return this;
+        }
+
+        public Builder<IN> withTempDirectoryPrefix(String tempDirPrefix) {
+            this.tempDirPrefix = tempDirPrefix;
+            return this;
+        }
+
+        public PinotSink<IN> build() {
+            return new PinotSink<>(
+                    this.pinotControllerHost,
+                    this.pinotControllerPort,
+                    this.tableName,
+                    this.maxRowsPerSegment,
+                    this.tempDirPrefix,
+                    this.jsonSerializer,
+                    this.eventTimeExtractor,
+                    this.segmentNameGenerator,
+                    this.fsAdapter
+            );
+        }
     }
 }
