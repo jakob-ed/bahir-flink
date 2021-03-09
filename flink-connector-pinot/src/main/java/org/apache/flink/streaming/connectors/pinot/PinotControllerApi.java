@@ -46,10 +46,11 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class PinotControllerApi {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerApi.class);
+    protected final String controllerHost;
     protected final String controllerHostPort;
 
     public PinotControllerApi(String controllerHost, String controllerPort) {
-        checkNotNull(controllerHost);
+        this.controllerHost = checkNotNull(controllerHost);
         checkNotNull(controllerPort);
         this.controllerHostPort = String.format("http://%s:%s", controllerHost, controllerPort);
     }

@@ -28,11 +28,17 @@ import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter;
+import org.apache.flink.streaming.connectors.pinot.writer.PinotWriterSegment;
+import org.apache.pinot.core.segment.creator.SegmentIndexCreationDriver;
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
+import org.apache.pinot.spi.config.table.TableConfig;
+import org.apache.pinot.spi.data.Schema;
+import org.apache.pinot.tools.admin.command.UploadSegmentCommand;
 
 import java.util.List;
 import java.util.Optional;
@@ -42,8 +48,57 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
- * Flink sink that pushes segments to the specified Pinot cluster.
- * Requires checkpointing to be enabled.
+ * Apache Pinot sink that stores objects from upstream Flink tasks in a Apache Pinot table. The sink
+ * can be operated in {@code RuntimeExecutionMode.STREAMING} or {@code RuntimeExecutionMode.BATCH}
+ * mode. But ensure to enable checkpointing when using in STREAMING mode.
+ *
+ * <p>We advise you to use the provided {@link PinotSink.Builder} to build and configure the
+ * PinotSink. All the communication with the Pinot cluster's table is managed via the Pinot
+ * controller. Thus you need to provide its host and port as well as the target Pinot table.
+ * The {@link TableConfig} and {@link Schema} is automatically retrieved via the Pinot controller API
+ * and therefore does not need to be provided.
+ *
+ * <p>Whenever an element is received by the sink it gets stored in a {@link PinotWriterSegment}. A
+ * {@link PinotWriterSegment} represents exactly one segment that will be pushed to the Pinot
+ * cluster later on. Its size is determined by the customizable {@code maxRowsPerSegment} parameter.
+ * Please note that the maximum segment size that can be handled by this sink is limited by the
+ * lower bound of memory available at each subTask.
+ * Each subTask holds a list of {@link PinotWriterSegment}s of which at most one is active. An
+ * active {@link PinotWriterSegment} is capable of accepting at least one more element. If a
+ * {@link PinotWriterSegment} switches from active to inactive it flushes its
+ * {@code maxRowsPerSegment} elements to disk. The data file is stored in the local filesystem's
+ * temporary directory and contains serialized elements. We use the {@link JsonSerializer} to
+ * serialize elements to JSON.
+ *
+ * <p>On checkpointing all inactive {@link PinotWriterSegment} are transformed into committables. As
+ * the data files need to be shared across nodes, the sink requires access to a shared filesystem. We
+ * use the {@link FileSystemAdapter} for that purpose. A {@link FileSystemAdapter} is capable of
+ * copying a file from the local to the shared filesystem and vice-versa.
+ * A {@link PinotSinkCommittable} contains a reference to a data file on the shared file system as
+ * well as the minimum and maximum timestamp contained in the data file. A timestamp - usually the
+ * event time - is extracted from each received element via {@link EventTimeExtractor}. The
+ * timestamps are later on required to follow the guideline for naming Pinot segments.
+ *
+ * <p>We use the {@link PinotSinkGlobalCommitter} to collect all created
+ * {@link PinotSinkCommittable}s, create segments from the referenced data files and finally push them
+ * to the Pinot table. Therefore, the minimum and maximum timestamp of all
+ * {@link PinotSinkCommittable} is determined. The segment names are then generated using the
+ * {@link PinotSinkSegmentNameGenerator} which gets the minimum and maximum timestamp as input.
+ * The segment generation starts with downloading the referenced data file from the shared file system
+ * using the provided {@link FileSystemAdapter}. Once this is was completed, we use Pinot's
+ * {@link SegmentIndexCreationDriver} to generate the final segment. Each segment is thereby stored
+ * in a temporary directory on the local filesystem. Next, the segment is uploaded to the Pinot
+ * controller using Pinot's {@link UploadSegmentCommand}.
+ *
+ * <p>To ensure that possible failures are handled accordingly each segment name is checked for
+ * existence within the Pinot cluster before uploading a segment. In case a segment name already
+ * exists, i.e. if the last commit failed partially with some segments already been uploaded, the
+ * existing segment is deleted first. When the elements since the last checkpoint are replayed the
+ * minimum and maximum timestamp of all received elements will be the same. Thus the same set of
+ * segment names is generated and we can delete previous segments by checking for segment name
+ * presence. Note: The {@link PinotSinkSegmentNameGenerator} must be deterministic. We also provide
+ * a {@link SimpleSegmentNameGenerator} which is a simple but for most users suitable segment name
+ * generator.
  *
  * @param <IN> Type of incoming elements
  */
@@ -145,7 +200,6 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     }
 
     /**
-     *
      * @param <IN> Type of incoming elements
      */
     public static class Builder<IN> {

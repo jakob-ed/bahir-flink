@@ -130,7 +130,7 @@ public class PinotWriterSegment<IN> implements Serializable {
 
         String FILE_NAME = "data.json";
 
-        File dataFile = new File(dir.toAbsolutePath() + "/" + dir);
+        File dataFile = new File(dir.toAbsolutePath() + "/" + FILE_NAME);
         Files.write(dataFile.toPath(), json, Charset.defaultCharset());
         LOG.info("Successfully written data to file {} in directory {}", FILE_NAME, dir.getFileName());
 
