@@ -19,9 +19,9 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.spotify.docker.client.exceptions.DockerException;
 import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
+import org.apache.flink.streaming.connectors.pinot.emulator.PinotEmulatorManager;
+import org.apache.flink.streaming.connectors.pinot.emulator.PinotTestHelper;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.util.TestLogger;
@@ -30,39 +30,52 @@ import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
-import org.junit.BeforeClass;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
-public class PinotUnitTestBase extends TestLogger implements Serializable {
-    @BeforeClass
-    public static void launchPinotEmulator() throws Exception {
-        // Separated out into separate class so the entire test class to be serializable
-        // PinotEmulatorManager.launchDocker();
+/**
+ * Base class for PinotSink e2e tests
+ */
+public class PinotTestBase extends TestLogger implements Serializable {
+
+    private static PinotEmulatorManager.ContainerPorts containerPorts;
+    protected static PinotTestHelper pinotHelper;
+
+    @BeforeAll
+    public static void launchPinotEmulator() throws InterruptedException {
+        containerPorts = PinotEmulatorManager.launchDocker();
+        pinotHelper = getPinotHelper();
+
+        // Wait until Pinot has set up its servers and brokers
+        Thread.sleep(40000);
     }
 
     @AfterAll
-    public static void terminatePinotEmulator() throws DockerException, InterruptedException {
-        // PinotEmulatorManager.terminateDocker();
+    public static void terminatePinotEmulator() throws IOException {
+        PinotEmulatorManager.terminateDocker();
     }
 
     // ====================================================================================
     // Pinot helpers
 
-    public static PinotHelper getPinotHelper() {
-        return new PinotHelper(getPinotControllerHost(), getPinotControllerPort());
+    public static PinotTestHelper getPinotHelper() {
+        return new PinotTestHelper(getPinotHost(), getPinotControllerPort(), getPinotBrokerPort());
     }
 
-    public static String getPinotControllerHost() {
-        return "127.0.0.1";
-        // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+    public static String getPinotHost() {
+        return containerPorts.getDockerIpAddress();
     }
 
     public static String getPinotControllerPort() {
-        return "9000";
-        // getDockerIpAddress() + ":" + getDockerPinotControllerPort();
+        return containerPorts.getPinotControllerPort();
+    }
+
+    public static String getPinotBrokerPort() {
+        return containerPorts.getPinotBrokerPort();
     }
 
     static class SingleColumnTableRow {

@@ -31,12 +31,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-public class PinotHelper extends PinotControllerApi {
+/**
+ * Helper class ot interact with the Pinot components in the e2e tests
+ */
+public class PinotTestHelper extends PinotControllerApi {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PinotHelper.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PinotTestHelper.class);
+    private final String brokerPort;
 
-    public PinotHelper(String controllerHost, String controllerPort) {
-        super(controllerHost, controllerPort);
+    public PinotTestHelper(String host, String controllerPort, String brokerPort) {
+        super(host, controllerPort);
+        this.brokerPort = brokerPort;
+        System.out.println("PinotHelper with " + controllerHost + "  and  " + controllerPort);
     }
 
     private void addSchema(Schema tableSchema) throws IOException {
@@ -81,7 +87,7 @@ public class PinotHelper extends PinotControllerApi {
         this.deleteSchema(tableSchema);
     }
 
-    private List<String> getBrokers(String tableName) throws IOException {
+    public List<String> getBrokers(String tableName) throws IOException {
         ApiResponse res = this.get(String.format("/brokers/tables/%s", tableName));
         LOG.info("Get broker request for table {} returned {}", tableName, res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
@@ -99,13 +105,22 @@ public class PinotHelper extends PinotControllerApi {
         return brokers;
     }
 
+    /**
+     * Fetch table entries via the Pinot broker.
+     *
+     * @param tableName          Target table's name
+     * @param maxNumberOfEntries Max number of entries to fetch
+     * @return ResultSet
+     * @throws Exception
+     */
     public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws Exception {
-        Connection pinotConnection = ConnectionFactory.fromHostList("localhost:8000");
+        String brokerHostPort = String.format("%s:%s", this.controllerHost, this.brokerPort);
+        Connection brokerConnection = ConnectionFactory.fromHostList(brokerHostPort);
 
         String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);
 
         Request pinotClientRequest = new Request("sql", query);
-        ResultSetGroup pinotResultSetGroup = pinotConnection.execute(pinotClientRequest);
+        ResultSetGroup pinotResultSetGroup = brokerConnection.execute(pinotClientRequest);
 
         if (pinotResultSetGroup.getResultSetCount() != 1) {
             throw new Exception("Could not find any data in Pinot cluster.");

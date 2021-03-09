@@ -18,14 +18,18 @@
 
 package org.apache.flink.streaming.connectors.pinot.emulator;
 
-import com.spotify.docker.client.DefaultDockerClient;
-import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.LogStream;
-import com.spotify.docker.client.exceptions.ContainerNotFoundException;
-import com.spotify.docker.client.exceptions.DockerCertificateException;
-import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.exceptions.ImageNotFoundException;
-import com.spotify.docker.client.messages.*;
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.exception.NotFoundException;
+import com.github.dockerjava.api.model.*;
+import com.github.dockerjava.core.DefaultDockerClientConfig;
+import com.github.dockerjava.core.DockerClientConfig;
+import com.github.dockerjava.core.DockerClientImpl;
+import com.github.dockerjava.core.command.LogContainerResultCallback;
+import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
+import com.github.dockerjava.transport.DockerHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,12 +38,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -48,134 +49,121 @@ public class PinotEmulatorManager {
 
     private static DockerClient docker;
 
-    private static String dockerIpAddress = "127.0.0.1";
-
-    public static final String INTERNAL_PINOT_CONTROLLER_PORT = "9000";
+    public static final int INTERNAL_PINOT_CONTROLLER_PORT = 9000;
+    public static final int INTERNAL_PINOT_BROKER_PORT = 8000;
     public static final String DOCKER_IMAGE_NAME = "apachepinot/pinot:latest";
-
-    private static String pinotControllerPort;
-
-    public static String getDockerIpAddress() {
-        if (dockerIpAddress == null) {
-            throw new IllegalStateException(
-                    "The docker has not yet been started (yet) so you cannot get the IP address yet.");
-        }
-        return dockerIpAddress;
-    }
-
-    public static String getDockerPinotControllerPort() {
-        if (pinotControllerPort == null) {
-            throw new IllegalStateException(
-                    "The docker has not yet been started (yet) so you cannot get the port information yet.");
-        }
-        return pinotControllerPort;
-    }
 
     public static final String UNITTEST_PROJECT_ID = "running-from-junit-for-flink";
     private static final String CONTAINER_NAME_JUNIT =
             (DOCKER_IMAGE_NAME + "_" + UNITTEST_PROJECT_ID).replaceAll("[^a-zA-Z0-9_]", "_");
 
-    public static void launchDocker()
-            throws DockerException, InterruptedException, DockerCertificateException {
-        // Create a client based on DOCKER_HOST and DOCKER_CERT_PATH env vars
-        docker = checkNotNull(DefaultDockerClient.fromEnv().build(), "Error while initializing Docker client");
+    public static ContainerPorts launchDocker() throws InterruptedException {
+        DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+        DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
+                .dockerHost(config.getDockerHost())
+                .build();
+        docker = DockerClientImpl.getInstance(config, httpClient);
         terminateAndDiscardAnyExistingContainers(true);
 
         LOG.info("");
         LOG.info("/===========================================");
         LOG.info("| Pinot Emulator");
 
-        ContainerInfo containerInfo;
+        InspectContainerResponse containerInfo;
         String id;
 
         try {
-            docker.inspectImage(DOCKER_IMAGE_NAME);
-        } catch (ImageNotFoundException e) {
+            docker.inspectImageCmd(DOCKER_IMAGE_NAME).exec();
+        } catch (NotFoundException e) {
             // No such image so we must download it first.
             LOG.info("| - Getting docker image \"{}\"", DOCKER_IMAGE_NAME);
-            docker.pull(
-                    DOCKER_IMAGE_NAME,
-                    message -> {
-                        if (message.id() != null && message.progress() != null) {
-                            LOG.info("| - Downloading > {} : {}", message.id(), message.progress());
-                        }
-                    });
+            docker.pullImageCmd(DOCKER_IMAGE_NAME).exec(new PullImageResultCallback() {
+                @Override
+                public void onNext(PullResponseItem item) {
+                    LOG.info("| - Downloading > {} : {}", item.getId(), item.getProgress());
+                }
+            });
         }
 
         // No such container. Good, we create one!
         LOG.info("| - Creating new container");
 
         // Bind container ports to host ports
-        final Map<String, List<PortBinding>> portBindings = new HashMap<>();
-        portBindings.put(
-                INTERNAL_PINOT_CONTROLLER_PORT, Collections.singletonList(PortBinding.randomPort("0.0.0.0")));
+        List<ExposedPort> exposedPorts = Arrays.asList(
+                new ExposedPort(INTERNAL_PINOT_CONTROLLER_PORT),
+                new ExposedPort(INTERNAL_PINOT_BROKER_PORT)
+        );
 
-        final HostConfig hostConfig = HostConfig.builder().portBindings(portBindings).build();
+        final List<PortBinding> portBindings = exposedPorts.stream()
+                .map(exposedPort ->
+                        // Assigns exposedPort to random port
+                        new PortBinding(new Ports.Binding("127.0.0.1", null), exposedPort)
+                )
+                .collect(Collectors.toList());
 
-        // Create new container with exposed ports
-        final ContainerConfig containerConfig =
-                ContainerConfig.builder()
-                        .hostConfig(hostConfig)
-                        .exposedPorts(INTERNAL_PINOT_CONTROLLER_PORT)
-                        .image(DOCKER_IMAGE_NAME)
-                        .build();
+        HostConfig hostConfig = new HostConfig()
+                .withPortBindings(portBindings);
 
-        LOG.debug("Launching container with configuration {}", containerConfig);
-        final ContainerCreation creation =
-                docker.createContainer(containerConfig, CONTAINER_NAME_JUNIT);
-        id = creation.id();
+        final CreateContainerResponse creation = docker.createContainerCmd(DOCKER_IMAGE_NAME)
+                .withHostConfig(hostConfig)
+                .withExposedPorts(exposedPorts)
+                .withName(CONTAINER_NAME_JUNIT)
+                .withCmd("QuickStart", "-type", "batch")
+                .exec();
+        id = creation.getId();
 
-        containerInfo = docker.inspectContainer(id);
+        containerInfo = docker.inspectContainerCmd(id).exec();
 
-        if (!containerInfo.state().running()) {
-            LOG.warn("| - Starting it up ....");
-            docker.startContainer(id);
+        if (!containerInfo.getState().getRunning()) {
+            LOG.info("| - Starting it up ....");
+            docker.startContainerCmd(id).exec();
             Thread.sleep(1000);
         }
 
-        containerInfo = docker.inspectContainer(id);
+        containerInfo = docker.inspectContainerCmd(id).exec();
 
-        dockerIpAddress = "127.0.0.1";
+        String dockerIpAddress = "127.0.0.1";
 
-        Map<String, List<PortBinding>> ports = containerInfo.networkSettings().ports();
+        Ports ports = containerInfo.getNetworkSettings().getPorts();
 
         assertNotNull("Unable to retrieve the ports where to connect to the emulators", ports);
-        assertEquals("We expect 1 port to be mapped", 1, ports.size());
+        assertEquals("We expect 1 port to be mapped", 6, ports.getBindings().size());
 
-        pinotControllerPort = getPort(ports, INTERNAL_PINOT_CONTROLLER_PORT, "PinotController");
+        String pinotControllerPort = getPort(ports, INTERNAL_PINOT_CONTROLLER_PORT, "PinotController");
+        String pinotBrokerPort = getPort(ports, INTERNAL_PINOT_BROKER_PORT, "PinotBroker");
 
         LOG.info("| Waiting for the emulators to be running");
 
-        // PubSub exposes an "Ok" at the root url when running.
-        if (!waitForOkStatus("PinotController", pinotControllerPort)) {
+        // Pinot exposes an "Ok" at the root url when running.
+        if (!waitForOkStatus("PinotController", dockerIpAddress, pinotControllerPort)) {
             // Oops, we did not get an "Ok" within 10 seconds
             startHasFailedKillEverything();
+            System.exit(1);
         }
         LOG.info("\\===========================================");
         LOG.info("");
+
+        return new ContainerPorts(dockerIpAddress, pinotControllerPort, pinotBrokerPort);
     }
 
-    private static void startHasFailedKillEverything()
-            throws DockerException, InterruptedException {
+    private static void startHasFailedKillEverything() {
         LOG.error("|");
         LOG.error("| ==================== ");
         LOG.error("| YOUR TESTS WILL FAIL ");
         LOG.error("| ==================== ");
         LOG.error("|");
 
-        // Kill this container and wipe all connection information
-        dockerIpAddress = null;
-        pinotControllerPort = null;
+        // Kill this container
         terminateAndDiscardAnyExistingContainers(false);
     }
 
-    private static final long MAX_RETRY_TIMEOUT = 10000; // Milliseconds
+    private static final long MAX_RETRY_TIMEOUT = 60000; // Milliseconds
 
-    private static boolean waitForOkStatus(String label, String port) {
+    private static boolean waitForOkStatus(String label, String dockerIpAddress, String port) {
         long start = System.currentTimeMillis();
         while (true) {
             try {
-                URL url = new URL("http://" + dockerIpAddress + ":" + port + "/");
+                URL url = new URL("http://" + dockerIpAddress + ":" + port + "/help");
                 HttpURLConnection con = (HttpURLConnection) url.openConnection();
                 con.setRequestMethod("GET");
                 con.setConnectTimeout(50);
@@ -189,18 +177,17 @@ public class PinotEmulatorManager {
                 }
                 in.close();
                 con.disconnect();
-                if (content.toString().contains("Ok")) {
+
+                if (content.toString().length() > 0) {
                     LOG.info("| - {} Emulator is running at {}:{}", label, dockerIpAddress, port);
                     return true;
                 }
             } catch (IOException e) {
                 long now = System.currentTimeMillis();
                 if (now - start > MAX_RETRY_TIMEOUT) {
-                    LOG.error(
-                            "| - Pinot Emulator at {}:{} FAILED to return an Ok status within {} ms ",
-                            dockerIpAddress,
-                            port,
-                            MAX_RETRY_TIMEOUT);
+                    System.out.println(
+                            "| - Pinot Emulator at "+dockerIpAddress+":"+port+" FAILED to return an Ok status within "+MAX_RETRY_TIMEOUT+" ms "
+                    );
                     return false;
                 }
                 try {
@@ -212,22 +199,24 @@ public class PinotEmulatorManager {
         }
     }
 
-    private static String getPort(
-            Map<String, List<PortBinding>> ports, String internalTCPPort, String label) {
-        List<PortBinding> portMappings = ports.get(internalTCPPort + "/tcp");
-        if (portMappings == null || portMappings.isEmpty()) {
+    private static String getPort(Ports ports, int internalTCPPort, String label) {
+        Optional<Map.Entry<ExposedPort, Ports.Binding[]>> portMapping = ports.getBindings().entrySet()
+                .stream()
+                .filter(exposedPortEntry -> exposedPortEntry.getKey().getPort() == internalTCPPort)
+                .findFirst();
+
+        if (!portMapping.isPresent() || portMapping.get().getValue().length == 0) {
             LOG.info("| {} Emulator --> NOTHING CONNECTED TO {}/tcp", label, internalTCPPort);
             return null;
         }
 
-        return portMappings.get(0).hostPort();
+        return portMapping.get().getValue()[0].getHostPortSpec();
     }
 
-    private static void terminateAndDiscardAnyExistingContainers(boolean warnAboutExisting)
-            throws DockerException, InterruptedException {
-        ContainerInfo containerInfo;
+    private static void terminateAndDiscardAnyExistingContainers(boolean warnAboutExisting) {
+        InspectContainerResponse containerInfo;
         try {
-            containerInfo = docker.inspectContainer(CONTAINER_NAME_JUNIT);
+            containerInfo = docker.inspectContainerCmd(CONTAINER_NAME_JUNIT).exec();
             // Already have this container running.
 
             assertNotNull(
@@ -242,42 +231,76 @@ public class PinotEmulatorManager {
             LOG.info("| Cleanup of Pinot Emulator. Log output of container: ");
 
             if (LOG.isInfoEnabled()) {
-                try (LogStream stream =
-                             docker.logs(
-                                     containerInfo.id(),
-                                     DockerClient.LogsParam.stdout(),
-                                     DockerClient.LogsParam.stderr())) {
-                    LOG.info("| > {}", stream.readFully());
+                try {
+                    docker.logContainerCmd(containerInfo.getId())
+                            .withStdOut(true)
+                            .withStdErr(true)
+                            .withTimestamps(true)
+                            .exec(new LogContainerResultCallback() {
+                                @Override
+                                public void onNext(Frame item) {
+                                    LOG.info("| > {}", item.toString());
+                                }
+                            }).awaitCompletion();
+                } catch (InterruptedException ignored) {
+
                 }
             }
 
             // We REQUIRE 100% accurate side effect free unit tests
             // So we completely discard this one.
 
-            String id = containerInfo.id();
+            String id = containerInfo.getId();
             // Kill container
-            if (containerInfo.state().running()) {
-                docker.killContainer(id);
+            if (containerInfo.getState().getRunning()) {
+                docker.killContainerCmd(id).exec();
                 LOG.info("| - Killed");
             }
 
             // Remove container
-            docker.removeContainer(id);
+            docker.removeContainerCmd(id).exec();
 
             LOG.info("| - Removed");
             LOG.info("\\===========================================");
             LOG.info("");
 
-        } catch (ContainerNotFoundException cnfe) {
+        } catch (NotFoundException cnfe) {
             // No such container. Good !
         }
     }
 
-    public static void terminateDocker() throws DockerException, InterruptedException {
+    public static void terminateDocker() throws IOException {
         terminateAndDiscardAnyExistingContainers(false);
 
         // Close the docker client
         docker.close();
+    }
+
+    /**
+     * Class used to store the Pinot host and ports.
+     */
+    public static class ContainerPorts {
+        final String dockerIpAddress;
+        final String pinotControllerPort;
+        final String pinotBrokerPort;
+
+        public ContainerPorts(String dockerIpAddress, String pinotControllerPort, String pinotBrokerPort) {
+            this.dockerIpAddress = dockerIpAddress;
+            this.pinotControllerPort = pinotControllerPort;
+            this.pinotBrokerPort = pinotBrokerPort;
+        }
+
+        public String getDockerIpAddress() {
+            return dockerIpAddress;
+        }
+
+        public String getPinotControllerPort() {
+            return pinotControllerPort;
+        }
+
+        public String getPinotBrokerPort() {
+            return pinotBrokerPort;
+        }
     }
 
     // ====================================================================================

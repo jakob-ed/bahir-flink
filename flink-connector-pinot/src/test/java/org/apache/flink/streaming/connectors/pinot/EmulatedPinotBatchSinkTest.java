@@ -21,7 +21,6 @@ package org.apache.flink.streaming.connectors.pinot;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.connectors.pinot.emulator.PinotHelper;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
@@ -32,6 +31,7 @@ import org.apache.pinot.client.ResultSet;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -41,26 +41,22 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
+/**
+ * E2e tests for Pinot Sink using BATCH execution mode
+ */
+public class EmulatedPinotBatchSinkTest extends PinotTestBase {
     private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
     private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
-    private static final PinotHelper pinotHelper = getPinotHelper();
 
     @BeforeEach
     public void beforeEach() throws Exception {
-        // PinotEmulatorManager.launchDocker();
-        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
         pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
-        // TODO: docker run --network=pinot-demo --name pinot-quickstart -p 9000:9000 -p 8000:8000 -d apachepinot/pinot:latest QuickStart -type batch
     }
 
     @AfterEach
     public void afterEach() throws Exception {
-        // pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
+        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
     @Test
@@ -88,7 +84,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotControllerHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
+        theData.sinkTo(new PinotSink<>(getPinotHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
 
         // Run
@@ -99,7 +95,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
 
-        assertEquals("Wrong number of elements", input.size(), resultSet.getRowCount());
+        Assertions.assertEquals(input.size(), resultSet.getRowCount(), "Wrong number of elements");
 
         // Check output strings
         List<String> output = IntStream.range(0, resultSet.getRowCount())
@@ -107,7 +103,7 @@ public class EmulatedPinotBatchSinkTest extends PinotUnitTestBase {
                 .collect(Collectors.toList());
 
         for (SingleColumnTableRow test : input) {
-            assertTrue("Missing " + test.getCol1(), output.contains(test.getCol1()));
+            Assertions.assertTrue(output.contains(test.getCol1()), "Missing " + test.getCol1());
         }
     }
 }

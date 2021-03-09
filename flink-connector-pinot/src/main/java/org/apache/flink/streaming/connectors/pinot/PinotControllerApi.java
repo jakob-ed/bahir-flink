@@ -49,12 +49,23 @@ public class PinotControllerApi {
     protected final String controllerHost;
     protected final String controllerHostPort;
 
+    /**
+     * @param controllerHost Pinot controller's host
+     * @param controllerPort Pinot controller's port
+     */
     public PinotControllerApi(String controllerHost, String controllerPort) {
         this.controllerHost = checkNotNull(controllerHost);
         checkNotNull(controllerPort);
         this.controllerHostPort = String.format("http://%s:%s", controllerHost, controllerPort);
     }
 
+    /**
+     * Issues a request to the Pinot controller API.
+     *
+     * @param request Request to issue
+     * @return Api response
+     * @throws IOException
+     */
     private ApiResponse execute(HttpRequestBase request) throws IOException {
         ApiResponse result;
 
