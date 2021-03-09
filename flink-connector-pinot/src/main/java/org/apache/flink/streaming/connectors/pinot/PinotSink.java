@@ -50,7 +50,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Apache Pinot sink that stores objects from upstream Flink tasks in a Apache Pinot table. The sink
  * can be operated in {@code RuntimeExecutionMode.STREAMING} or {@code RuntimeExecutionMode.BATCH}
- * mode. But ensure to enable checkpointing when using in STREAMING mode.
+ * mode. But ensure to enable checkpointing when using in streaming mode.
  *
  * <p>We advise you to use the provided {@link PinotSink.Builder} to build and configure the
  * PinotSink. All the communication with the Pinot cluster's table is managed via the Pinot
@@ -200,6 +200,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     }
 
     /**
+     * Builder for configuring a {@link PinotSink}. This is the recommended public API.
+     *
      * @param <IN> Type of incoming elements
      */
     public static class Builder<IN> {
@@ -213,50 +215,115 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         SegmentNameGenerator segmentNameGenerator;
         FileSystemAdapter fsAdapter;
 
+        /**
+         * Defines the basic connection parameters.
+         *
+         * @param pinotControllerHost Host of the Pinot controller
+         * @param pinotControllerPort Port of the Pinot controller
+         * @param tableName           Target table's name
+         */
         public Builder(String pinotControllerHost, String pinotControllerPort, String tableName) {
             this.pinotControllerHost = pinotControllerHost;
             this.pinotControllerPort = pinotControllerPort;
             this.tableName = tableName;
         }
 
+        /**
+         * Defines the serializer used to serialize elements to JSON format.
+         *
+         * @param jsonSerializer JsonSerializer
+         * @return Builder
+         */
         public Builder<IN> withJsonSerializer(JsonSerializer<IN> jsonSerializer) {
             this.jsonSerializer = jsonSerializer;
             return this;
         }
 
+        /**
+         * Defines the EventTimeExtractor<IN> used to extract event times from received objects.
+         *
+         * @param eventTimeExtractor EventTimeExtractor
+         * @return Builder
+         */
         public Builder<IN> withEventTimeExtractor(EventTimeExtractor<IN> eventTimeExtractor) {
             this.eventTimeExtractor = eventTimeExtractor;
             return this;
         }
 
+        /**
+         * Defines the SegmentNameGenerator used to generate names for the segments pushed to Pinot.
+         *
+         * @param segmentNameGenerator SegmentNameGenerator
+         * @return Builder
+         */
         public Builder<IN> withSegmentNameGenerator(SegmentNameGenerator segmentNameGenerator) {
             this.segmentNameGenerator = segmentNameGenerator;
             return this;
         }
 
-        public Builder<IN> withSimpleSegmentNameGenerator(String tableName, String segmentNamePostfix) {
-            return this.withSegmentNameGenerator(new SimpleSegmentNameGenerator(tableName, segmentNamePostfix));
+        /**
+         * Defines a basic segment name generator which will be used to generate names for the
+         * segments pushed to Pinot.
+         *
+         * @param segmentNamePostfix Postfix which will be appended to the segment name to identify
+         *                           segments coming from this Flink sink
+         * @return Builder
+         */
+        public Builder<IN> withSimpleSegmentNameGenerator(String segmentNamePostfix) {
+            return this.withSegmentNameGenerator(new SimpleSegmentNameGenerator(this.tableName, segmentNamePostfix));
         }
 
+        /**
+         * Defines the FileSystemAdapter used share data files between the {@link PinotSinkWriter} and
+         * the {@link PinotSinkGlobalCommitter}.
+         *
+         * @param fsAdapter Adapter for interacting with the shared file system
+         * @return Builder
+         */
         public Builder<IN> withFileSystemAdapter(FileSystemAdapter fsAdapter) {
             this.fsAdapter = fsAdapter;
             return this;
         }
 
+        /**
+         * Use the local file system for sharing data files between the {@link PinotSinkWriter} and
+         * the {@link PinotSinkGlobalCommitter}.
+         * CAUTION: This requires all subTasks and the {@link PinotSinkGlobalCommitter} to run on
+         * the same node with access to the same local file system.
+         *
+         * @return Builder
+         */
         public Builder<IN> withLocalFileSystemAdapter() {
             return this.withFileSystemAdapter(new LocalFileSystemAdapter());
         }
 
+        /**
+         * Defines the segment size via the maximum number of elements per segment.
+         *
+         * @param maxRowsPerSegment Maximum number of rows to be stored within a Pinot segment
+         * @return Builder
+         */
         public Builder<IN> withMaxRowsPerSegment(int maxRowsPerSegment) {
             this.maxRowsPerSegment = maxRowsPerSegment;
             return this;
         }
 
+        /**
+         * Defines the path prefix for the files created in a node's local filesystem.
+         *
+         * @param tempDirPrefix Prefix for temp directories used
+         * @return Builder
+         */
         public Builder<IN> withTempDirectoryPrefix(String tempDirPrefix) {
             this.tempDirPrefix = tempDirPrefix;
             return this;
         }
 
+        /**
+         * Finally builds the {@link PinotSink} according to the configuration.
+         *
+         * @return PinotSink
+         */
         public PinotSink<IN> build() {
             return new PinotSink<>(
                     this.pinotControllerHost,
