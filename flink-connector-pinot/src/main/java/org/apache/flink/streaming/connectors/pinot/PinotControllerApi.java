@@ -69,6 +69,14 @@ public class PinotControllerApi {
         return result;
     }
 
+    /**
+     * Issues a POST request to the Pinot controller API.
+     *
+     * @param path Path to POST to
+     * @param body Request's body
+     * @return API response
+     * @throws IOException
+     */
     protected ApiResponse post(String path, String body) throws IOException {
         HttpPost httppost = new HttpPost(this.controllerHostPort + path);
         httppost.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
@@ -76,6 +84,14 @@ public class PinotControllerApi {
         return this.execute(httppost);
     }
 
+    /**
+     * Issues a POST request to the Pinot controller API.
+     *
+     * @param path   Path to POST to
+     * @param entity Http entity to POST
+     * @return API response
+     * @throws IOException
+     */
     protected ApiResponse post(String path, HttpEntity entity) throws IOException {
         HttpPost httppost = new HttpPost(this.controllerHostPort + path);
         httppost.setEntity(entity);
@@ -83,27 +99,39 @@ public class PinotControllerApi {
         return this.execute(httppost);
     }
 
+    /**
+     * Issues a GET request to the Pinot controller API.
+     *
+     * @param path Path to GET from
+     * @return API response
+     * @throws IOException
+     */
     protected ApiResponse get(String path) throws IOException {
         HttpGet httpget = new HttpGet(this.controllerHostPort + path);
         LOG.info("Sending GET request to {}", path);
         return this.execute(httpget);
     }
 
+    /**
+     * Issues a DELETE request to the Pinot controller API.
+     *
+     * @param path Path to issue DELETE request to
+     * @return API response
+     * @throws IOException
+     */
     protected ApiResponse delete(String path) throws IOException {
         HttpDelete httpdelete = new HttpDelete(this.controllerHostPort + path);
         LOG.info("Sending DELETE request to {}", path);
         return this.execute(httpdelete);
     }
 
-    private List<String> toListOfString(JsonNode jsonNode) {
-        List<String> result = new ArrayList<>();
-        for (int j = 0; j < jsonNode.size(); j++) {
-            String segmentName = jsonNode.get(j).asText();
-            result.add(segmentName);
-        }
-        return result;
-    }
-
+    /**
+     * Fetches all segment names for the given table name from the Pinot controller.
+     *
+     * @param tableName Target table's name
+     * @return List of segment names
+     * @throws IOException
+     */
     public List<String> getSegmentNames(String tableName) throws IOException {
         List<String> segmentNames = new ArrayList<>();
         ApiResponse res = this.get(String.format("/segments/%s", tableName));
@@ -128,6 +156,14 @@ public class PinotControllerApi {
         return segmentNames;
     }
 
+    /**
+     * Fetches a segment's metadata via the Pinot controller API.
+     *
+     * @param tableName   Target table's name
+     * @param segmentName Segment name to fetch metadata for
+     * @return Metadata as JsonNode
+     * @throws IOException
+     */
     public JsonNode getSegmentMetadata(String tableName, String segmentName) throws IOException {
         ApiResponse res = this.get(String.format("/segments/%s/%s/metadata", tableName, segmentName));
 
@@ -138,6 +174,14 @@ public class PinotControllerApi {
         return JsonUtils.stringToJsonNode(res.responseBody);
     }
 
+    /**
+     * Checks whether the provided segment name is registered with the given table.
+     *
+     * @param tableName   Target table's name
+     * @param segmentName Segment name to check
+     * @return True if segment with the provided name exists
+     * @throws IOException
+     */
     public boolean tableHasSegment(String tableName, String segmentName) throws IOException {
         ApiResponse res = this.get(String.format("/tables/%s/%s/metadata", tableName, segmentName));
 
@@ -155,6 +199,13 @@ public class PinotControllerApi {
         throw new PinotControllerApiException(res.responseBody);
     }
 
+    /**
+     * Deletes a segment from a table.
+     *
+     * @param tableName   Target table's name
+     * @param segmentName Identifies the segment to delete
+     * @throws IOException
+     */
     public void deleteSegment(String tableName, String segmentName) throws IOException {
         ApiResponse res = this.delete(String.format("/tables/%s/%s", tableName, segmentName));
 
@@ -164,6 +215,13 @@ public class PinotControllerApi {
         }
     }
 
+    /**
+     * Fetches a Pinot table's schema via the Pinot controller API.
+     *
+     * @param tableName Target table's name
+     * @return Pinot table schema
+     * @throws IOException
+     */
     public Schema getSchema(String tableName) throws IOException {
         Schema schema;
         ApiResponse res = this.get(String.format("/tables/%s/schema", tableName));
@@ -182,6 +240,13 @@ public class PinotControllerApi {
         return schema;
     }
 
+    /**
+     * Fetches a Pinot table's configuration via the Pinot controller API.
+     *
+     * @param tableName Target table's name
+     * @return Pinot table configuration
+     * @throws IOException
+     */
     public TableConfig getTableConfig(String tableName) throws IOException {
         TableConfig tableConfig;
         ApiResponse res = this.get(String.format("/tables/%s", tableName));
@@ -197,6 +262,25 @@ public class PinotControllerApi {
         return tableConfig;
     }
 
+
+    /**
+     * Helper method to convert a json node to a list of strings.
+     *
+     * @param jsonNode JsonNode to convert
+     * @return Content as list of strings
+     */
+    private List<String> toListOfString(JsonNode jsonNode) {
+        List<String> result = new ArrayList<>();
+        for (int j = 0; j < jsonNode.size(); j++) {
+            String segmentName = jsonNode.get(j).asText();
+            result.add(segmentName);
+        }
+        return result;
+    }
+
+    /**
+     * Helper class for wrapping Pinot controller API responses.
+     */
     protected class ApiResponse {
         public final StatusLine statusLine;
         public final String responseBody;
