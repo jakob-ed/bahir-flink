@@ -25,25 +25,34 @@ env.enableCheckpointing(long interval);
 
 DataStream<PinotRow> dataStream = ...
 PinotSink pinotSink = new PinotSink.Builder<PinotRow>(String pinotControllerHost, String pinotControllerPort, String tableName)
+        
         // Serializes a PinotRow to JSON format
         .withJsonSerializer(JsonSerializer<PinotRow> jsonSerializer)
+        
         // Extracts the timestamp from a PinotRow
         .withEventTimeExtractor(EventTimeExtractor<IN> eventTimeExtractor)
+        
         // Defines the segment name generation via the predefined SimpleSegmentNameGenerator
         // Exemplary segment name: tableName_minTimestamp_maxTimestamp_segmentNamePostfix_0
         .withSimpleSegmentNameGenerator(String tableName, String segmentNamePostfix)
+        
         // Use a custom segment name generator if the SimpleSegmentNameGenerator does not work for your use case
         .withSegmentNameGenerator(SegmentNameGenerator segmentNameGenerator)
+        
         // Use the local filesystem to share committables across subTasks
-        // CAUTION: Execute use only if all subTasks run on the same node with access to the local filesystem
+        // CAUTION: Use only if all subTasks run on the same node with access to the local filesystem
         .withLocalFileSystemAdapter()
+        
         // Use a custom filesystem adapter. 
         // CAUTION: Make sure all nodes your Flink app runs on can access the shared filesystem via the provided FileSystemAdapter
         .withFileSystemAdapter(FileSystemAdapter fsAdapter)
+        
         // Defines the size of the Pinot segments
         .withMaxRowsPerSegment(int maxRowsPerSegment)
+        
         // Prefix within the local filesystem's temp directory used for storing intermediate files
         .withTempDirectoryPrefix(String tempDirPrefix)
+        
         // Builds the PinotSink
         .build()
 dataStream.addSink(pinotSink);
