@@ -31,7 +31,9 @@ import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -43,10 +45,15 @@ import java.util.concurrent.TimeUnit;
 public class PinotTestBase extends TestLogger implements Serializable {
 
     private static PinotEmulatorManager.ContainerPorts containerPorts;
+
+    protected static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
+    protected static final String TABLE_NAME = TABLE_CONFIG.getTableName();
+    protected static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
     protected static PinotTestHelper pinotHelper;
 
     /**
      * Launch the Pinot container before the first test is started.
+     *
      * @throws InterruptedException
      */
     @BeforeAll
@@ -56,6 +63,26 @@ public class PinotTestBase extends TestLogger implements Serializable {
 
         // Wait until Pinot has set up its servers and brokers
         Thread.sleep(40000);
+    }
+
+    /**
+     * Create an empty test table before each test.
+     *
+     * @throws Exception
+     */
+    @BeforeEach
+    public void beforeEach() throws Exception {
+        pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
+    }
+
+    /**
+     * Delete the test table after each test.
+     *
+     * @throws Exception
+     */
+    @AfterEach
+    public void afterEach() throws Exception {
+        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
     /**

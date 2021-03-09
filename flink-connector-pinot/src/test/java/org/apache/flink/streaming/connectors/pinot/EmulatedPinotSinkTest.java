@@ -28,11 +28,7 @@ import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAda
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.pinot.client.ResultSet;
-import org.apache.pinot.spi.config.table.TableConfig;
-import org.apache.pinot.spi.data.Schema;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -42,32 +38,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * E2e tests for Pinot Sink using BATCH execution mode
+ * E2e tests for Pinot Sink using BATCH and STREAMING execution mode
  */
-public class EmulatedPinotBatchSinkTest extends PinotTestBase {
-    private static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
-    private static final String TABLE_NAME = TABLE_CONFIG.getTableName();
-    private static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
-
-    /**
-     * Create an empty test table before each test.
-     *
-     * @throws Exception
-     */
-    @BeforeEach
-    public void beforeEach() throws Exception {
-        pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
-    }
-
-    /**
-     * Delete the test table after each test.
-     *
-     * @throws Exception
-     */
-    @AfterEach
-    public void afterEach() throws Exception {
-        pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
-    }
+public class EmulatedPinotSinkTest extends PinotTestBase {
 
     /**
      * Tests the BATCH execution of the {@link PinotSink}.
@@ -80,16 +53,63 @@ public class EmulatedPinotBatchSinkTest extends PinotTestBase {
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setParallelism(2);
 
-        List<SingleColumnTableRow> input =
-                Stream.of(
-                        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                        "Ten", "Eleven", "Twelve")
-                        .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
-                        .collect(Collectors.toList());
+        List<SingleColumnTableRow> data = getTestData();
+        this.setupDataStream(env, data);
 
+        // Run
+        env.execute();
+
+        TimeUnit.MILLISECONDS.sleep(500);
+
+        checkForDataInPinot(data);
+    }
+
+    /**
+     * Tests the STREAMING execution of the {@link PinotSink}.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testStreamingSink() throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.enableCheckpointing(2000);
+        env.setParallelism(2);
+
+        List<SingleColumnTableRow> data = getTestData();
+        this.setupDataStream(env, data);
+
+        // Run
+        env.execute();
+
+        TimeUnit.MILLISECONDS.sleep(10000);
+
+        checkForDataInPinot(data);
+    }
+
+    /**
+     * Generates a small test dataset consisting of {@link SingleColumnTableRow}s.
+     *
+     * @return List of SingleColumnTableRow
+     */
+    private List<SingleColumnTableRow> getTestData() {
+        return Stream.of(
+                "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+                "Ten", "Eleven", "Twelve")
+                .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Sets up a DataStream using the provided execution environment and the provided input data.
+     *
+     * @param env  stream execution environment
+     * @param data Input data
+     */
+    private void setupDataStream(StreamExecutionEnvironment env, List<SingleColumnTableRow> data) {
         // Create test stream
         DataStream<SingleColumnTableRow> theData =
-                env.fromCollection(input)
+                env.fromCollection(data)
                         .name("Test input");
 
         PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
@@ -101,23 +121,26 @@ public class EmulatedPinotBatchSinkTest extends PinotTestBase {
         // Sink into Pinot
         theData.sinkTo(new PinotSink<>(getPinotHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
+    }
 
-        // Run
-        env.execute();
-
-        TimeUnit.MILLISECONDS.sleep(500);
-
+    /**
+     * Checks whether data is present in the Pinot target table
+     *
+     * @param data Data to expect in the Pinot table
+     * @throws Exception
+     */
+    private void checkForDataInPinot(List<SingleColumnTableRow> data) throws Exception {
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
 
-        Assertions.assertEquals(input.size(), resultSet.getRowCount(), "Wrong number of elements");
+        Assertions.assertEquals(data.size(), resultSet.getRowCount(), "Wrong number of elements");
 
         // Check output strings
         List<String> output = IntStream.range(0, resultSet.getRowCount())
                 .mapToObj(i -> resultSet.getString(i, 0))
                 .collect(Collectors.toList());
 
-        for (SingleColumnTableRow test : input) {
+        for (SingleColumnTableRow test : data) {
             Assertions.assertTrue(output.contains(test.getCol1()), "Missing " + test.getCol1());
         }
     }

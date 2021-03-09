@@ -42,7 +42,6 @@ public class PinotTestHelper extends PinotControllerApi {
     public PinotTestHelper(String host, String controllerPort, String brokerPort) {
         super(host, controllerPort);
         this.brokerPort = brokerPort;
-        System.out.println("PinotHelper with " + controllerHost + "  and  " + controllerPort);
     }
 
     private void addSchema(Schema tableSchema) throws IOException {
