@@ -20,7 +20,7 @@ The sink class is called `PinotSink`.
 ### Java API
 ```java
 StreamExecutionEnvironment env = ...
-// Checkpointing needs to be enabled
+// Checkpointing needs to be enabled when executing in STREAMING mode
 env.enableCheckpointing(long interval);
 
 DataStream<PinotRow> dataStream = ...
