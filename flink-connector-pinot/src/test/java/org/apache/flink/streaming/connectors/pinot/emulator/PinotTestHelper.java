@@ -28,22 +28,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 /**
- * Helper class ot interact with the Pinot components in the e2e tests
+ * Helper class ot interact with the Pinot controller and broker in the e2e tests
  */
 public class PinotTestHelper extends PinotControllerApi {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotTestHelper.class);
     private final String brokerPort;
 
+    /**
+     * @param host           Host the Pinot controller and broker are accessible at
+     * @param controllerPort The Pinot controller's external port at {@code host}
+     * @param brokerPort     A Pinot broker's external port at {@code host}
+     */
     public PinotTestHelper(String host, String controllerPort, String brokerPort) {
         super(host, controllerPort);
         this.brokerPort = brokerPort;
     }
 
+    /**
+     * Adds a Pinot table schema.
+     *
+     * @param tableSchema Pinot table schema to add
+     * @throws IOException
+     */
     private void addSchema(Schema tableSchema) throws IOException {
         ApiResponse res = this.post("/schemas", JsonUtils.objectToString(tableSchema));
         LOG.info("Schema add request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
@@ -52,6 +61,12 @@ public class PinotTestHelper extends PinotControllerApi {
         }
     }
 
+    /**
+     * Deletes a Pinot table schema.
+     *
+     * @param tableSchema Pinot table schema to delete
+     * @throws IOException
+     */
     private void deleteSchema(Schema tableSchema) throws IOException {
         ApiResponse res = this.delete(String.format("/schemas/%s", tableSchema.getSchemaName()));
         LOG.info("Schema delete request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
@@ -60,6 +75,12 @@ public class PinotTestHelper extends PinotControllerApi {
         }
     }
 
+    /**
+     * Creates a Pinot table.
+     *
+     * @param tableConfig Pinot table configuration of table to create
+     * @throws IOException
+     */
     private void addTable(TableConfig tableConfig) throws IOException {
         ApiResponse res = this.post("/tables", JsonUtils.objectToString(tableConfig));
         LOG.info("Table creation request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
@@ -68,6 +89,12 @@ public class PinotTestHelper extends PinotControllerApi {
         }
     }
 
+    /**
+     * Deletes a Pinot table with all its segments.
+     *
+     * @param tableConfig Pinot table configuration of table to delete
+     * @throws IOException
+     */
     private void removeTable(TableConfig tableConfig) throws IOException {
         ApiResponse res = this.delete(String.format("/tables/%s", tableConfig.getTableName()));
         LOG.info("Table deletion request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
@@ -76,32 +103,30 @@ public class PinotTestHelper extends PinotControllerApi {
         }
     }
 
+    /**
+     * Creates a Pinot table by first adding a schema and then creating the actual table using the
+     * Pinot table configuration
+     *
+     * @param tableConfig Pinot table configuration
+     * @param tableSchema Pinot table schema
+     * @throws IOException
+     */
     public void createTable(TableConfig tableConfig, Schema tableSchema) throws IOException {
         this.addSchema(tableSchema);
         this.addTable(tableConfig);
     }
 
+    /**
+     * Deletes a Pinot table by first deleting the table and its segments and then deleting the
+     * table's schema.
+     *
+     * @param tableConfig Pinot table configuration
+     * @param tableSchema Pinot table schema
+     * @throws IOException
+     */
     public void deleteTable(TableConfig tableConfig, Schema tableSchema) throws IOException {
         this.removeTable(tableConfig);
         this.deleteSchema(tableSchema);
-    }
-
-    public List<String> getBrokers(String tableName) throws IOException {
-        ApiResponse res = this.get(String.format("/brokers/tables/%s", tableName));
-        LOG.info("Get broker request for table {} returned {}", tableName, res.responseBody);
-        if (res.statusLine.getStatusCode() != 200) {
-            throw new PinotControllerApiException(res.responseBody);
-        }
-
-        List<String> brokers;
-        try {
-            brokers = Arrays.asList(JsonUtils.stringToObject(res.responseBody, String[].class));
-        } catch (Exception e) {
-            throw new IllegalStateException("Caught exception while reading brokers from Pinot Controller's response: " + res.responseBody, e);
-        }
-        LOG.info("Retrieved brokers: {}", brokers);
-
-        return brokers;
     }
 
     /**

@@ -62,7 +62,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
         pinotHelper = getPinotHelper();
 
         // Wait until Pinot has set up its servers and brokers
-        Thread.sleep(40000);
+        TimeUnit.SECONDS.sleep(40);
     }
 
     /**

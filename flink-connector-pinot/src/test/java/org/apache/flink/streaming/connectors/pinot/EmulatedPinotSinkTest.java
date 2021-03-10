@@ -88,7 +88,7 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
 
         // We only expect the first 100 elements to be already committed to Pinot.
         // The remaining would follow once we increase the input data size.
-        // The stream executions seems to stop once the last input tuple was sent to the sink
+        // The stream executions stops once the last input tuple was sent to the sink.
         checkForDataInPinot(data, 100);
     }
 
