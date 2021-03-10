@@ -110,30 +110,6 @@ under the License.
             <version>4.6.1</version>
         </dependency>
 
-        <!--START Benchmarking Dependencies-->
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-scala_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-runtime_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <!--END Benchmarking Dependencies-->
-
-
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
