@@ -49,7 +49,6 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testBatchSink() throws Exception {
-        System.out.println("testBatchSink()");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setParallelism(2);
@@ -62,7 +61,7 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
 
         TimeUnit.MILLISECONDS.sleep(500);
 
-        checkForDataInPinot(data, false);
+        checkForDataInPinot(data, data.size());
     }
 
     /**
@@ -72,7 +71,6 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testStreamingSink() throws Exception {
-        System.out.println("testStreamingSink()");
         final Configuration conf = new Configuration();
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
@@ -91,8 +89,7 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
         // We only expect the first 100 elements to be already committed to Pinot.
         // The remaining would follow once we increase the input data size.
         // The stream executions seems to stop once the last input tuple was sent to the sink
-        List<SingleColumnTableRow> expectedData = data.stream().limit(100).collect(Collectors.toList());
-        checkForDataInPinot(expectedData, true);
+        checkForDataInPinot(data, 100);
     }
 
     /**
@@ -136,18 +133,27 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      * @param data Data to expect in the Pinot table
      * @throws Exception
      */
-    private void checkForDataInPinot(List<SingleColumnTableRow> data, boolean ignoreIfMoreExist) throws Exception {
+    private void checkForDataInPinot(List<SingleColumnTableRow> data, int numElementsToCheck) throws Exception {
         // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + (ignoreIfMoreExist ? 0 : 5));
+        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + 5);
 
-        Assertions.assertEquals(data.size(), resultSet.getRowCount(), "Wrong number of elements");
+        if (numElementsToCheck == data.size()) {
+            // Check for exact number
+            Assertions.assertEquals(numElementsToCheck, resultSet.getRowCount(), "Wrong number of elements");
+        } else if (numElementsToCheck < data.size()) {
+            // Check if at least numElementsToCheck elements are present
+            Assertions.assertTrue(resultSet.getRowCount() >= numElementsToCheck, "To few elements");
+        } else {
+            throw new IllegalArgumentException("numElementsToCheck must not be larger than size of input data");
+        }
 
         // Check output strings
         List<String> output = IntStream.range(0, resultSet.getRowCount())
                 .mapToObj(i -> resultSet.getString(i, 0))
                 .collect(Collectors.toList());
 
-        for (SingleColumnTableRow test : data) {
+        List<SingleColumnTableRow> dataToCheck = data.stream().limit(100).collect(Collectors.toList());
+        for (SingleColumnTableRow test : dataToCheck) {
             Assertions.assertTrue(output.contains(test.getCol1()), "Missing " + test.getCol1());
         }
     }
