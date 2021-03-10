@@ -22,3 +22,6 @@ target/
 .checkstyle
 .fbExcludeFilterFile
 dependency-reduced-pom.xml
+
+.ipynb_checkpoints
+flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/results/collected-metrics

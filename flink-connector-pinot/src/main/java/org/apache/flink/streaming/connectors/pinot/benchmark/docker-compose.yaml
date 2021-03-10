@@ -24,7 +24,7 @@ services:
         "FlinkApp",
         "--sourceHost", "data-generator",
         "--sourcePort", "5001",
-        "--parallelism", "1",
+        "--parallelism", "4",
         "--segmentSize", "50000", # 50k
         "--checkpointingInterval", "30000",  # Set checkpointing interval to 30s
         "--delay", "60000" # Wait 60s before trying to connect to pinot-cluster
@@ -45,8 +45,8 @@ services:
       dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
         "DataGenerator",
-        "--numTuples", "6000000", # 10 M
-        "--sleepTime", "20", # in milliseconds
+        "--numTuples", "8000000", # 10 M
+        "--sleepTime", "10", # in milliseconds
         "--bufferSize", "10000000", # 10M
         "--port", "5001"
     ]
@@ -63,7 +63,7 @@ services:
       dockerfile: "flink-connector-pinot/src/main/java/org/apache/flink/streaming/connectors/pinot/benchmark/Dockerfile"
     command: [
         "MetricsCollector",
-        "--numTuples", "6000000", # 10 M
+        "--numTuples", "8000000", # 10 M
         "--segmentSize", "50000", # 50k
         "--checkpointingInterval", "30000",  # Set checkpointing interval to 30s
         "--delay", "80000" # Wait 80s before trying to connect to pinot-cluster

@@ -57,7 +57,7 @@ public class Event implements Serializable {
 //        geo = geoList[geoIndex];
 //        geoIndex++;
 
-        byte[] array = new byte[7]; // 0.15 -> 57, 0.25 -> 155
+        byte[] array = new byte[155]; // 0.15 -> 57, 0.25 -> 155
         new Random().nextBytes(array);
         String geo = new String(array, StandardCharsets.UTF_8);
 
