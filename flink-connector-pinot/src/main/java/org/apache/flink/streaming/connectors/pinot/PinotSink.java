@@ -100,11 +100,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * a {@link SimpleSegmentNameGenerator} which is a simple but for most users suitable segment name
  * generator.
  *
+ * <p>Please note that we use the {@link GlobalCommitter} to ensure consistent segment naming. This
+ * comes with performance limitations as a {@link GlobalCommitter} always runs at a parallelism of 1
+ * which results in a clear bottleneck at the {@link PinotSinkGlobalCommitter} that does all the
+ * computational intensive work (i.e. generating and uploading segments). In order to overcome this
+ * issue we introduce a custom multithreading approach within the {@link PinotSinkGlobalCommitter}
+ * to parallelize the segment creation and upload process.
+ *
  * @param <IN> Type of incoming elements
  */
 public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, PinotSinkGlobalCommittable> {
-
-    private static final long serialVersionUID = 1L;
 
     private final String pinotControllerHost;
     private final String pinotControllerPort;
@@ -127,7 +132,10 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param segmentNameGenerator Pinot segment name generator
      * @param fsAdapter            Filesystem adapter used to save files for sharing files across nodes
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName, int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, EventTimeExtractor<IN> eventTimeExtractor, SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
+    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName,
+                     int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer,
+                     EventTimeExtractor<IN> eventTimeExtractor,
+                     SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -149,7 +157,10 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      */
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
-        return new PinotSinkWriter<>(context.getSubtaskId(), this.maxRowsPerSegment, this.eventTimeExtractor, this.tempDirPrefix, this.jsonSerializer, this.fsAdapter);
+        return new PinotSinkWriter<>(
+                context.getSubtaskId(), this.maxRowsPerSegment, this.eventTimeExtractor,
+                this.tempDirPrefix, this.jsonSerializer, this.fsAdapter
+        );
     }
 
     /**
@@ -169,7 +180,11 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     public Optional<GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable>> createGlobalCommitter() {
         String timeColumnName = eventTimeExtractor.getTimeColumn();
         TimeUnit segmentTimeUnit = eventTimeExtractor.getSegmentTimeUnit();
-        PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(this.pinotControllerHost, this.pinotControllerPort, this.tableName, this.segmentNameGenerator, this.fsAdapter, timeColumnName, segmentTimeUnit);
+        PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(
+                this.pinotControllerHost, this.pinotControllerPort, this.tableName,
+                this.segmentNameGenerator, this.tempDirPrefix, this.fsAdapter,
+                timeColumnName, segmentTimeUnit
+        );
         return Optional.of(committer);
     }
 

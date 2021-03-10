@@ -59,7 +59,7 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
         // Run
         env.execute();
 
-        TimeUnit.MILLISECONDS.sleep(500);
+        TimeUnit.SECONDS.sleep(5);
 
         checkForDataInPinot(data, data.size());
     }
