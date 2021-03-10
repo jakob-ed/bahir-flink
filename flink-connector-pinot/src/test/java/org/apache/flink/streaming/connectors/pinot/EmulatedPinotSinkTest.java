@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
@@ -35,7 +36,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * E2e tests for Pinot Sink using BATCH and STREAMING execution mode
@@ -49,11 +49,12 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testBatchSink() throws Exception {
+        System.out.println("testBatchSink()");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setParallelism(2);
 
-        List<SingleColumnTableRow> data = getTestData();
+        List<SingleColumnTableRow> data = getTestData(12);
         this.setupDataStream(env, data);
 
         // Run
@@ -61,7 +62,7 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
 
         TimeUnit.MILLISECONDS.sleep(500);
 
-        checkForDataInPinot(data);
+        checkForDataInPinot(data, false);
     }
 
     /**
@@ -71,20 +72,27 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testStreamingSink() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        System.out.println("testStreamingSink()");
+        final Configuration conf = new Configuration();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        env.enableCheckpointing(2000);
         env.setParallelism(2);
+        env.enableCheckpointing(50);
 
-        List<SingleColumnTableRow> data = getTestData();
+        List<SingleColumnTableRow> data = getTestData(1000);
         this.setupDataStream(env, data);
 
         // Run
         env.execute();
 
-        TimeUnit.MILLISECONDS.sleep(10000);
+        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
+        TimeUnit.SECONDS.sleep(5);
 
-        checkForDataInPinot(data);
+        // We only expect the first 100 elements to be already committed to Pinot.
+        // The remaining would follow once we increase the input data size.
+        // The stream executions seems to stop once the last input tuple was sent to the sink
+        List<SingleColumnTableRow> expectedData = data.stream().limit(100).collect(Collectors.toList());
+        checkForDataInPinot(expectedData, true);
     }
 
     /**
@@ -92,10 +100,9 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      *
      * @return List of SingleColumnTableRow
      */
-    private List<SingleColumnTableRow> getTestData() {
-        return Stream.of(
-                "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-                "Ten", "Eleven", "Twelve")
+    private List<SingleColumnTableRow> getTestData(int numItems) {
+        return IntStream.range(1, numItems + 1)
+                .mapToObj(num -> "ColValue" + num)
                 .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
                 .collect(Collectors.toList());
     }
@@ -129,9 +136,9 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
      * @param data Data to expect in the Pinot table
      * @throws Exception
      */
-    private void checkForDataInPinot(List<SingleColumnTableRow> data) throws Exception {
+    private void checkForDataInPinot(List<SingleColumnTableRow> data, boolean ignoreIfMoreExist) throws Exception {
         // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, 15);
+        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + (ignoreIfMoreExist ? 0 : 5));
 
         Assertions.assertEquals(data.size(), resultSet.getRowCount(), "Wrong number of elements");
 
