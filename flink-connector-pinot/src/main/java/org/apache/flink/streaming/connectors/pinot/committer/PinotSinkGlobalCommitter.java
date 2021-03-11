@@ -207,7 +207,6 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                 // In case of an exception mark the whole globalCommittable as failed
                 failedCommits.add(globalCommittable);
                 LOG.error(e.getMessage());
-                e.printStackTrace();
             }
         }
 
@@ -360,7 +359,6 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                 // Commit successful
                 return true;
             } catch (IOException e) {
-                e.printStackTrace();
                 LOG.error(e.getMessage());
 
                 // Commit failed
@@ -400,7 +398,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                     segment.destroy();
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOG.error(e.getMessage());
                 throw new RuntimeException("Caught exception while generating segment from file: " + dataFile.getPath());
             }
             LOG.info("Successfully created 1 segment from data file: {}", dataFile);
