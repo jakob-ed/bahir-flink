@@ -20,8 +20,6 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.streaming.connectors.pinot.emulator.PinotEmulatorManager;
-import org.apache.flink.streaming.connectors.pinot.emulator.PinotTestHelper;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.util.TestLogger;
@@ -30,10 +28,13 @@ import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -42,9 +43,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Base class for PinotSink e2e tests
  */
+@Testcontainers
 public class PinotTestBase extends TestLogger implements Serializable {
 
-    private static PinotEmulatorManager.ContainerPorts containerPorts;
+    public static final String DOCKER_IMAGE_NAME = "apachepinot/pinot:0.6.0";
+    public static final Integer PINOT_INTERNAL_BROKER_PORT = 8000;
+    public static final Integer PINOT_INTERNAL_CONTROLLER_PORT = 9000;
 
     protected static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     protected static final String TABLE_NAME = TABLE_CONFIG.getTableName();
@@ -52,26 +56,26 @@ public class PinotTestBase extends TestLogger implements Serializable {
     protected static PinotTestHelper pinotHelper;
 
     /**
-     * Launch the Pinot container before the first test is started.
-     *
-     * @throws InterruptedException
+     * Creates the Pinot testcontainer. We delay the start of tests until Pinot has started all
+     * internal components. This is identified through a log statement.
      */
-    @BeforeAll
-    public static void launchPinotContainer() throws InterruptedException {
-        containerPorts = PinotEmulatorManager.launchDocker();
-        pinotHelper = getPinotHelper();
-
-        // Wait until Pinot has set up its servers and brokers
-        TimeUnit.SECONDS.sleep(40);
-    }
+    @Container
+    public GenericContainer<?> pinot = new GenericContainer<>(DockerImageName.parse(DOCKER_IMAGE_NAME))
+            .withCommand("QuickStart", "-type", "batch")
+            .withExposedPorts(PINOT_INTERNAL_BROKER_PORT, PINOT_INTERNAL_CONTROLLER_PORT)
+            .waitingFor(
+                    Wait.forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*\\n", 1)
+            );
 
     /**
-     * Create an empty test table before each test.
+     * Creates a new instance of the {@link PinotTestHelper} using the testcontainer port mappings
+     * and creates the test table.
      *
-     * @throws Exception
+     * @throws IOException
      */
     @BeforeEach
-    public void beforeEach() throws Exception {
+    public void setUp() throws IOException {
+        pinotHelper = new PinotTestHelper(getPinotHost(), getPinotControllerPort(), getPinotBrokerPort());
         pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
 
@@ -81,27 +85,8 @@ public class PinotTestBase extends TestLogger implements Serializable {
      * @throws Exception
      */
     @AfterEach
-    public void afterEach() throws Exception {
+    public void tearDown() throws Exception {
         pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
-    }
-
-    /**
-     * Terminate the Pinot container after all tests have been completed.
-     *
-     * @throws IOException
-     */
-    @AfterAll
-    public static void terminatePinotContainer() throws IOException {
-        PinotEmulatorManager.terminateDocker();
-    }
-
-    /**
-     * Creates a new instance of the {@link PinotTestHelper}.
-     *
-     * @return PinotTestHelper
-     */
-    public static PinotTestHelper getPinotHelper() {
-        return new PinotTestHelper(getPinotHost(), getPinotControllerPort(), getPinotBrokerPort());
     }
 
     /**
@@ -109,8 +94,8 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot container host
      */
-    public static String getPinotHost() {
-        return containerPorts.getDockerIpAddress();
+    public String getPinotHost() {
+        return this.pinot.getHost();
     }
 
 
@@ -119,8 +104,8 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot controller port
      */
-    public static String getPinotControllerPort() {
-        return containerPorts.getPinotControllerPort();
+    public String getPinotControllerPort() {
+        return this.pinot.getMappedPort(PINOT_INTERNAL_CONTROLLER_PORT).toString();
     }
 
     /**
@@ -128,8 +113,8 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot broker port
      */
-    public static String getPinotBrokerPort() {
-        return containerPorts.getPinotBrokerPort();
+    public String getPinotBrokerPort() {
+        return this.pinot.getMappedPort(PINOT_INTERNAL_BROKER_PORT).toString();
     }
 
     /**

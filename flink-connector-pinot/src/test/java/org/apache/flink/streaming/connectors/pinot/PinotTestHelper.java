@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot.emulator;
+package org.apache.flink.streaming.connectors.pinot;
 
-import org.apache.flink.streaming.connectors.pinot.PinotControllerApi;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
 import org.apache.pinot.client.*;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -35,6 +34,7 @@ import java.io.IOException;
 public class PinotTestHelper extends PinotControllerApi {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotTestHelper.class);
+    private final String host;
     private final String brokerPort;
 
     /**
@@ -44,6 +44,7 @@ public class PinotTestHelper extends PinotControllerApi {
      */
     public PinotTestHelper(String host, String controllerPort, String brokerPort) {
         super(host, controllerPort);
+        this.host = host;
         this.brokerPort = brokerPort;
     }
 
@@ -138,7 +139,7 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws Exception
      */
     public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws Exception {
-        String brokerHostPort = String.format("%s:%s", this.controllerHost, this.brokerPort);
+        String brokerHostPort = String.format("%s:%s", this.host, this.brokerPort);
         Connection brokerConnection = ConnectionFactory.fromHostList(brokerHostPort);
 
         String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);

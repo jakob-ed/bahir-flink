@@ -40,6 +40,8 @@ under the License.
     <properties>
         <pinot.version>0.6.0</pinot.version>
 
+        <testcontainers.version>1.15.2</testcontainers.version>
+
         <!-- Flink version -->
         <flink.version>1.12.0</flink.version>
     </properties>
@@ -147,6 +149,19 @@ under the License.
             <groupId>org.powermock</groupId>
             <artifactId>powermock-api-mockito</artifactId>
             <version>1.5.5</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
 
