@@ -38,6 +38,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -63,8 +64,10 @@ public class PinotTestBase extends TestLogger implements Serializable {
     public GenericContainer<?> pinot = new GenericContainer<>(DockerImageName.parse(DOCKER_IMAGE_NAME))
             .withCommand("QuickStart", "-type", "batch")
             .withExposedPorts(PINOT_INTERNAL_BROKER_PORT, PINOT_INTERNAL_CONTROLLER_PORT)
-            .waitingFor(
-                    Wait.forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*\\n", 1)
+            .waitingFor(Wait
+                    .forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*\\n", 1)
+                    // Allow Pinot to take up to 90s for starting up
+                    .withStartupTimeout(Duration.ofSeconds(90))
             );
 
     /**

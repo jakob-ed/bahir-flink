@@ -18,9 +18,7 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
-import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
@@ -35,8 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -71,7 +67,6 @@ public class PinotControllerApi {
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
              CloseableHttpResponse response = httpClient.execute(request)) {
 
-
             String body = EntityUtils.toString(response.getEntity());
             result = new ApiResponse(response.getStatusLine(), body);
         }
@@ -91,21 +86,6 @@ public class PinotControllerApi {
         HttpPost httppost = new HttpPost(this.controllerHostPort + path);
         httppost.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
         LOG.info("Posting string entity {} to {}", body, path);
-        return this.execute(httppost);
-    }
-
-    /**
-     * Issues a POST request to the Pinot controller API.
-     *
-     * @param path   Path to POST to
-     * @param entity Http entity to POST
-     * @return API response
-     * @throws IOException
-     */
-    protected ApiResponse post(String path, HttpEntity entity) throws IOException {
-        HttpPost httppost = new HttpPost(this.controllerHostPort + path);
-        httppost.setEntity(entity);
-        LOG.info("Posting {} entity to {}", entity.getContentType(), path);
         return this.execute(httppost);
     }
 
@@ -133,55 +113,6 @@ public class PinotControllerApi {
         HttpDelete httpdelete = new HttpDelete(this.controllerHostPort + path);
         LOG.info("Sending DELETE request to {}", path);
         return this.execute(httpdelete);
-    }
-
-    /**
-     * Fetches all segment names for the given table name from the Pinot controller.
-     *
-     * @param tableName Target table's name
-     * @return List of segment names
-     * @throws IOException
-     */
-    public List<String> getSegmentNames(String tableName) throws IOException {
-        List<String> segmentNames = new ArrayList<>();
-        ApiResponse res = this.get(String.format("/segments/%s", tableName));
-
-        if (res.statusLine.getStatusCode() != 200) {
-            throw new PinotControllerApiException(res.responseBody);
-        }
-
-        JsonNode parsedResponse = JsonUtils.stringToJsonNode(res.responseBody);
-        for (int i = 0; i < parsedResponse.size(); i++) {
-            JsonNode item = parsedResponse.get(i);
-            if (item.has("OFFLINE")) {
-                List<String> extracted = this.toListOfString(item.get("OFFLINE"));
-                segmentNames.addAll(extracted);
-            }
-            if (item.has("REALTIME")) {
-                List<String> extracted = this.toListOfString(item.get("REALTIME"));
-                segmentNames.addAll(extracted);
-            }
-        }
-
-        return segmentNames;
-    }
-
-    /**
-     * Fetches a segment's metadata via the Pinot controller API.
-     *
-     * @param tableName   Target table's name
-     * @param segmentName Segment name to fetch metadata for
-     * @return Metadata as JsonNode
-     * @throws IOException
-     */
-    public JsonNode getSegmentMetadata(String tableName, String segmentName) throws IOException {
-        ApiResponse res = this.get(String.format("/segments/%s/%s/metadata", tableName, segmentName));
-
-        if (res.statusLine.getStatusCode() != 200) {
-            throw new PinotControllerApiException(res.responseBody);
-        }
-
-        return JsonUtils.stringToJsonNode(res.responseBody);
     }
 
     /**
@@ -272,26 +203,10 @@ public class PinotControllerApi {
         return tableConfig;
     }
 
-
-    /**
-     * Helper method to convert a json node to a list of strings.
-     *
-     * @param jsonNode JsonNode to convert
-     * @return Content as list of strings
-     */
-    private List<String> toListOfString(JsonNode jsonNode) {
-        List<String> result = new ArrayList<>();
-        for (int j = 0; j < jsonNode.size(); j++) {
-            String segmentName = jsonNode.get(j).asText();
-            result.add(segmentName);
-        }
-        return result;
-    }
-
     /**
      * Helper class for wrapping Pinot controller API responses.
      */
-    protected class ApiResponse {
+    protected static class ApiResponse {
         public final StatusLine statusLine;
         public final String responseBody;
 

@@ -46,7 +46,9 @@ public class PinotSinkGlobalCommittable implements Serializable {
         return dataFilePaths;
     }
 
-    public long getMinTimestamp() { return minTimestamp; }
+    public long getMinTimestamp() {
+        return minTimestamp;
+    }
 
     public long getMaxTimestamp() {
         return maxTimestamp;
