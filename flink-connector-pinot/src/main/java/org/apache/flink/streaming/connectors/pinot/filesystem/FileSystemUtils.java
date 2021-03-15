@@ -26,12 +26,12 @@ public class FileSystemUtils {
     public static File writeToLocalFile(List<String> elements, String tempDirPrefix) throws IOException {
         // Create folder in temp directory for storing data
         Path dir = Files.createTempDirectory(tempDirPrefix);
-        LOG.info("Using path '{}' for storing elements", dir.toAbsolutePath());
+        LOG.debug("Using path '{}' for storing elements", dir.toAbsolutePath());
 
         String FILE_NAME = "data.json";
         File dataFile = new File(dir.toAbsolutePath() + "/" + FILE_NAME);
         Files.write(dataFile.toPath(), elements, Charset.defaultCharset());
-        LOG.info("Successfully written data to file {} in directory {}", FILE_NAME, dir.getFileName());
+        LOG.debug("Successfully written data to file {} in directory {}", FILE_NAME, dir.getFileName());
 
         return dataFile;
     }

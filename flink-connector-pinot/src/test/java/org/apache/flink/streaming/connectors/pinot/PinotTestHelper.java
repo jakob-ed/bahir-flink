@@ -86,7 +86,7 @@ public class PinotTestHelper implements Closeable {
      */
     private void addTable(TableConfig tableConfig) throws IOException {
         PinotControllerHttpClient.ApiResponse res = httpClient.post("/tables", JsonUtils.objectToString(tableConfig));
-        LOG.info("Table creation request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
+        LOG.debug("Table creation request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
         }
@@ -100,7 +100,7 @@ public class PinotTestHelper implements Closeable {
      */
     private void removeTable(TableConfig tableConfig) throws IOException {
         PinotControllerHttpClient.ApiResponse res = httpClient.delete(String.format("/tables/%s", tableConfig.getTableName()));
-        LOG.info("Table deletion request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
+        LOG.debug("Table deletion request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
         }
