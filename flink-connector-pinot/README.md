@@ -1,6 +1,6 @@
 # Flink Pinot Connector
 
-This connector provides a source and sink to [Apache Pinot](http://pinot.apache.org/)™.  
+This connector provides a sink to [Apache Pinot](http://pinot.apache.org/)™.  
 To use this connector, add the following dependency to your project:
 
     <dependency>
@@ -57,4 +57,3 @@ PinotSink pinotSink = new PinotSink.Builder<PinotRow>(String pinotControllerHost
         .build()
 dataStream.addSink(pinotSink);
 ```
-
