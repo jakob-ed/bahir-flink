@@ -40,6 +40,7 @@ import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.tools.admin.command.UploadSegmentCommand;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -177,7 +178,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * Creates the global committer.
      */
     @Override
-    public Optional<GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable>> createGlobalCommitter() {
+    public Optional<GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable>> createGlobalCommitter() throws IOException {
         String timeColumnName = eventTimeExtractor.getTimeColumn();
         TimeUnit segmentTimeUnit = eventTimeExtractor.getSegmentTimeUnit();
         PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(

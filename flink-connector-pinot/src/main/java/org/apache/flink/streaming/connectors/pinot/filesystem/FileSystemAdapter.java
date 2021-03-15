@@ -17,9 +17,6 @@
 
 package org.apache.flink.streaming.connectors.pinot.filesystem;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
@@ -29,8 +26,6 @@ import java.util.List;
  * nodes within the cluster than run a partition of the {@link org.apache.flink.streaming.connectors.pinot.PinotSink}.
  */
 public abstract class FileSystemAdapter implements Serializable {
-
-    private static final Logger LOG = LoggerFactory.getLogger(FileSystemAdapter.class);
 
     /**
      * Writes a list of serialized elements to the shared filesystem.
