@@ -123,9 +123,18 @@ public class PinotSinkTest extends PinotTestBase {
 
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
+        PinotSink<SingleColumnTableRow> sink = new PinotSink.Builder<SingleColumnTableRow>(getPinotHost(), getPinotControllerPort(), TABLE_NAME)
+                .withMaxRowsPerSegment(5)
+                .withTempDirectoryPrefix(tempDirPrefix)
+                .withJsonSerializer(jsonSerializer)
+                .withEventTimeExtractor(eventTimeExtractor)
+                .withSegmentNameGenerator(segmentNameGenerator)
+                .withFileSystemAdapter(fsAdapter)
+                .withNumCommitThreads(2)
+                .build();
+
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotHost(), getPinotControllerPort(), TABLE_NAME, 5, tempDirPrefix, jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
-                .name("Pinot sink");
+        theData.sinkTo(sink).name("Pinot sink");
     }
 
     /**

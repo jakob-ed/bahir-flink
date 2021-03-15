@@ -21,7 +21,6 @@ import org.apache.flink.api.connector.sink.GlobalCommitter;
 import org.apache.flink.streaming.connectors.pinot.PinotControllerClient;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemUtils;
-import org.apache.flink.util.FileUtils;
 import org.apache.pinot.common.segment.ReadMode;
 import org.apache.pinot.core.indexsegment.generator.SegmentGeneratorConfig;
 import org.apache.pinot.core.indexsegment.immutable.ImmutableSegment;
@@ -45,6 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
@@ -67,6 +67,9 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     private final TimeUnit segmentTimeUnit;
     private final PinotControllerClient pinotControllerClient;
     private final File tempDirectory;
+    private final Schema tableSchema;
+    private final TableConfig tableConfig;
+    private final ExecutorService pool;
 
     /**
      * @param pinotControllerHost  Host of the Pinot controller
@@ -77,11 +80,13 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * @param fsAdapter            Adapter for interacting with the shared file system
      * @param timeColumnName       Name of the column containing the timestamp
      * @param segmentTimeUnit      Unit of the time column
+     * @param numCommitThreads     Number of threads used to commit the committables
      */
     public PinotSinkGlobalCommitter(String pinotControllerHost, String pinotControllerPort,
                                     String tableName, SegmentNameGenerator segmentNameGenerator,
                                     String tempDirPrefix, FileSystemAdapter fsAdapter,
-                                    String timeColumnName, TimeUnit segmentTimeUnit) throws IOException {
+                                    String timeColumnName, TimeUnit segmentTimeUnit,
+                                    int numCommitThreads) throws IOException {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -90,8 +95,17 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         this.timeColumnName = checkNotNull(timeColumnName);
         this.segmentTimeUnit = checkNotNull(segmentTimeUnit);
         pinotControllerClient = new PinotControllerClient(pinotControllerHost, pinotControllerPort);
+
         // Create directory that temporary files will be stored in
         tempDirectory = Files.createTempDirectory(tempDirPrefix).toFile();
+
+        // Retrieve the Pinot table schema and the Pinot table config from the Pinot controller
+        tableSchema = pinotControllerClient.getSchema(tableName);
+        tableConfig = pinotControllerClient.getTableConfig(tableName);
+
+        // We use a thread pool in order to parallelize the segment creation and segment upload
+        checkArgument(numCommitThreads > 0);
+        pool = Executors.newFixedThreadPool(numCommitThreads);
     }
 
     /**
@@ -165,25 +179,8 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         // List of failed global committables that can be retried later on
         List<PinotSinkGlobalCommittable> failedCommits = new ArrayList<>();
 
-        // Retrieve the Pinot table schema and the Pinot table config from the Pinot controller
-        Schema tableSchema = pinotControllerClient.getSchema(tableName);
-        TableConfig tableConfig = pinotControllerClient.getTableConfig(tableName);
-
         for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
-            // Make sure to remove all previously committed segments in globalCommittable
-            // when recovering from failure
-            CommitStatus commitStatus = getCommitStatus(globalCommittable);
-            for (String existingSegment : commitStatus.getExistingSegmentNames()) {
-                // Some but not all segments were already committed. As we cannot assure the data
-                // files containing the same data as originally when recovering from failure,
-                // we delete the already committed segments in order to recommit them later on.
-                pinotControllerClient.deleteSegment(tableName, existingSegment);
-            }
-
-            // We use a thread pool in order to parallelize the segment creation and segment upload
-            ExecutorService pool = Executors.newCachedThreadPool();
             Set<Future<Boolean>> resultFutures = new HashSet<>();
-
             // Commit all segments in globalCommittable
             for (int sequenceId = 0; sequenceId < globalCommittable.getDataFilePaths().size(); sequenceId++) {
                 String dataFilePath = globalCommittable.getDataFilePaths().get(sequenceId);
@@ -242,12 +239,14 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     }
 
     /**
-     * Close Pinot controller http client and clears the created temporary directory.
+     * Closes the Pinot controller http client, clears the created temporary directory and
+     * shuts the thread pool down.
      */
     @Override
     public void close() throws IOException {
         pinotControllerClient.close();
-        FileUtils.cleanDirectory(tempDirectory);
+        tempDirectory.delete();
+        pool.shutdown();
     }
 
     /**
@@ -318,16 +317,16 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
 
         private static final Logger LOG = LoggerFactory.getLogger(SegmentCommitter.class);
 
-        final String pinotControllerHost;
-        final String pinotControllerPort;
-        final File tempDirectory;
-        final FileSystemAdapter fsAdapter;
-        final String dataFilePath;
-        final String segmentName;
-        final Schema tableSchema;
-        final TableConfig tableConfig;
-        final String timeColumnName;
-        final TimeUnit segmentTimeUnit;
+        private final String pinotControllerHost;
+        private final String pinotControllerPort;
+        private final File tempDirectory;
+        private final FileSystemAdapter fsAdapter;
+        private final String dataFilePath;
+        private final String segmentName;
+        private final Schema tableSchema;
+        private final TableConfig tableConfig;
+        private final String timeColumnName;
+        private final TimeUnit segmentTimeUnit;
 
         /**
          * @param pinotControllerHost Host of the Pinot controller

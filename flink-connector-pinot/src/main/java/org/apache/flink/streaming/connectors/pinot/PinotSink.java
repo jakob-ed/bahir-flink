@@ -121,6 +121,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     private final SegmentNameGenerator segmentNameGenerator;
     private final FileSystemAdapter fsAdapter;
     private final EventTimeExtractor<IN> eventTimeExtractor;
+    private final int numCommitThreads;
 
     /**
      * @param pinotControllerHost  Host of the Pinot controller
@@ -132,11 +133,13 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param eventTimeExtractor   Defines the way event times are extracted from received objects
      * @param segmentNameGenerator Pinot segment name generator
      * @param fsAdapter            Filesystem adapter used to save files for sharing files across nodes
+     * @param numCommitThreads     Number of threads used in the {@link PinotSinkGlobalCommitter} for committing segments
      */
     public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName,
                      int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer,
                      EventTimeExtractor<IN> eventTimeExtractor,
-                     SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter) {
+                     SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter,
+                     int numCommitThreads) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -148,6 +151,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
         this.segmentNameGenerator = checkNotNull(segmentNameGenerator);
         this.fsAdapter = checkNotNull(fsAdapter);
+        checkArgument(numCommitThreads > 0);
+        this.numCommitThreads = numCommitThreads;
     }
 
     /**
@@ -183,7 +188,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         TimeUnit segmentTimeUnit = eventTimeExtractor.getSegmentTimeUnit();
         PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(
                 pinotControllerHost, pinotControllerPort, tableName, segmentNameGenerator,
-                tempDirPrefix, fsAdapter, timeColumnName, segmentTimeUnit
+                tempDirPrefix, fsAdapter, timeColumnName, segmentTimeUnit, numCommitThreads
         );
         return Optional.of(committer);
     }
@@ -229,6 +234,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         EventTimeExtractor<IN> eventTimeExtractor;
         SegmentNameGenerator segmentNameGenerator;
         FileSystemAdapter fsAdapter;
+        int numCommitThreads = 4;
 
         /**
          * Defines the basic connection parameters.
@@ -335,6 +341,17 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         }
 
         /**
+         * Defines the number of threads that shall be used to commit segments in the {@link PinotSinkGlobalCommitter}.
+         *
+         * @param numCommitThreads Number of threads
+         * @return Builder
+         */
+        public Builder<IN> withNumCommitThreads(int numCommitThreads) {
+            this.numCommitThreads = numCommitThreads;
+            return this;
+        }
+
+        /**
          * Finally builds the {@link PinotSink} according to the configuration.
          *
          * @return PinotSink
@@ -349,7 +366,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
                     jsonSerializer,
                     eventTimeExtractor,
                     segmentNameGenerator,
-                    fsAdapter
+                    fsAdapter,
+                    numCommitThreads
             );
         }
     }
