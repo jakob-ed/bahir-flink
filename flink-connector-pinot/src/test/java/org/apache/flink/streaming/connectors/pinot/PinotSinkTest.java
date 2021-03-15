@@ -64,33 +64,33 @@ public class PinotSinkTest extends PinotTestBase {
         checkForDataInPinot(data, data.size());
     }
 
-//    /**
-//     * Tests the STREAMING execution of the {@link PinotSink}.
-//     *
-//     * @throws Exception
-//     */
-//    @Test
-//    public void testStreamingSink() throws Exception {
-//        final Configuration conf = new Configuration();
-//        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
-//        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-//        env.setParallelism(2);
-//        env.enableCheckpointing(50);
-//
-//        List<SingleColumnTableRow> data = getTestData(1000);
-//        this.setupDataStream(env, data);
-//
-//        // Run
-//        env.execute();
-//
-//        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
-//        TimeUnit.SECONDS.sleep(5);
-//
-//        // We only expect the first 100 elements to be already committed to Pinot.
-//        // The remaining would follow once we increase the input data size.
-//        // The stream executions stops once the last input tuple was sent to the sink.
-//        checkForDataInPinot(data, 100);
-//    }
+    /**
+     * Tests the STREAMING execution of the {@link PinotSink}.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testStreamingSink() throws Exception {
+        final Configuration conf = new Configuration();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.setParallelism(2);
+        env.enableCheckpointing(50);
+
+        List<SingleColumnTableRow> data = getTestData(1000);
+        this.setupDataStream(env, data);
+
+        // Run
+        env.execute();
+
+        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
+        TimeUnit.SECONDS.sleep(5);
+
+        // We only expect the first 100 elements to be already committed to Pinot.
+        // The remaining would follow once we increase the input data size.
+        // The stream executions stops once the last input tuple was sent to the sink.
+        checkForDataInPinot(data, 100);
+    }
 
     /**
      * Generates a small test dataset consisting of {@link SingleColumnTableRow}s.

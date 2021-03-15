@@ -41,9 +41,6 @@ under the License.
         <pinot.version>0.6.0</pinot.version>
 
         <testcontainers.version>1.15.2</testcontainers.version>
-
-        <!-- Flink version -->
-        <flink.version>1.12.0</flink.version>
     </properties>
 
     <dependencies>
