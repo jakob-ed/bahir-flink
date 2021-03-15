@@ -103,8 +103,8 @@ public class PinotControllerClient implements Closeable {
 
         try {
             schema = JsonUtils.stringToObject(res.responseBody, Schema.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("Caught exception while reading schema from Pinot Controller's response: " + res.responseBody, e);
+        } catch (IOException e) {
+            throw new PinotControllerApiException("Caught exception while reading schema from Pinot Controller's response: " + res.responseBody);
         }
         LOG.debug("Retrieved schema: {}", schema.toSingleLineJsonString());
         return schema;
@@ -125,7 +125,7 @@ public class PinotControllerClient implements Closeable {
         try {
             String tableConfigAsJson = JsonUtils.stringToJsonNode(res.responseBody).get("OFFLINE").toString();
             tableConfig = JsonUtils.stringToObject(tableConfigAsJson, TableConfig.class);
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new PinotControllerApiException("Caught exception while reading table config from Pinot Controller's response: " + res.responseBody);
         }
         LOG.debug("Retrieved table config: {}", tableConfig.toJsonString());

@@ -59,7 +59,9 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      * @param jsonSerializer     Serializer used to convert elements to JSON
      * @param fsAdapter          Filesystem adapter used to save files for sharing files across nodes
      */
-    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
+    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment,
+                           EventTimeExtractor<IN> eventTimeExtractor,
+                           JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         this.subtaskId = subtaskId;
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
@@ -82,7 +84,14 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     }
 
     /**
-     * Creates {@link PinotSinkCommittable}s from elements received via {@link #write}
+     * Creates {@link PinotSinkCommittable}s from elements previously received via {@link #write}.
+     * If flush is set, all {@link PinotWriterSegment}s are transformed into
+     * {@link PinotSinkCommittable}s. If flush is not set, only currently non-active
+     * {@link PinotSinkCommittable}s are transformed into {@link PinotSinkCommittable}s.
+     * To convert a {@link PinotWriterSegment} into a {@link PinotSinkCommittable} the data gets
+     * written to the shared filesystem. Moreover, minimum and maximum timestamps are identified.
+     * Finally, all {@link PinotWriterSegment}s transformed into {@link PinotSinkCommittable}s are
+     * removed from {@link #activeSegments}.
      *
      * @param flush Flush all currently known elements into the {@link PinotSinkCommittable}s
      * @return List of {@link PinotSinkCommittable} to process in {@link org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommitter}

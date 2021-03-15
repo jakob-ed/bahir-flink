@@ -23,7 +23,9 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
- * Defines the segment name generator interface that is used to generate segment names.
+ * Defines the segment name generator interface that is used to generate segment names. The segment
+ * name generator is required to be serializable. We expect users to inherit from
+ * {@link PinotSinkSegmentNameGenerator} in case they want to define their custom name generator.
  */
 public abstract class PinotSinkSegmentNameGenerator implements SegmentNameGenerator, Serializable {
 

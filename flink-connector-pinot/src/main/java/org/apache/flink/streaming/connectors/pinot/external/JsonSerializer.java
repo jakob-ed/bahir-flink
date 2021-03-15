@@ -20,6 +20,12 @@ package org.apache.flink.streaming.connectors.pinot.external;
 
 import java.io.Serializable;
 
+/**
+ * Defines the interface for serializing incoming elements to JSON format.
+ * The JSON format is expected during Pinot segment creation.
+ *
+ * @param <IN> Type of incoming elements
+ */
 public abstract class JsonSerializer<IN> implements Serializable {
 
     public abstract String toJson(IN element);
