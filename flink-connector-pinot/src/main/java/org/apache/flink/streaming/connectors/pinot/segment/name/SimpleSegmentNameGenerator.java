@@ -19,6 +19,8 @@ package org.apache.flink.streaming.connectors.pinot.segment.name;
 
 import javax.annotation.Nullable;
 
+import static org.apache.flink.util.Preconditions.checkNotNull;
+
 /**
  * Adapted from {@link org.apache.pinot.core.segment.name.SimpleSegmentNameGenerator}.
  * <p>
@@ -39,21 +41,21 @@ public class SimpleSegmentNameGenerator extends PinotSinkSegmentNameGenerator {
     private final String segmentNamePostfix;
 
     public SimpleSegmentNameGenerator(String tableName, String segmentNamePostfix) {
-        this.tableName = tableName;
-        this.segmentNamePostfix = segmentNamePostfix;
+        this.tableName = checkNotNull(tableName);
+        this.segmentNamePostfix = checkNotNull(segmentNamePostfix);
     }
 
     @Override
     public String generateSegmentName(int sequenceId, @Nullable Object minTimeValue, @Nullable Object maxTimeValue) {
         return JOINER
-                .join(this.tableName, minTimeValue, maxTimeValue, this.segmentNamePostfix, sequenceId >= 0 ? sequenceId : null);
+                .join(tableName, minTimeValue, maxTimeValue, segmentNamePostfix, sequenceId >= 0 ? sequenceId : null);
     }
 
     @Override
     public String toString() {
-        StringBuilder stringBuilder = new StringBuilder("SimpleSegmentNameGenerator: tableName=").append(this.tableName);
-        if (this.segmentNamePostfix != null) {
-            stringBuilder.append(", segmentNamePostfix=").append(this.segmentNamePostfix);
+        StringBuilder stringBuilder = new StringBuilder("SimpleSegmentNameGenerator: tableName=").append(tableName);
+        if (segmentNamePostfix != null) {
+            stringBuilder.append(", segmentNamePostfix=").append(segmentNamePostfix);
         }
         return stringBuilder.toString();
     }

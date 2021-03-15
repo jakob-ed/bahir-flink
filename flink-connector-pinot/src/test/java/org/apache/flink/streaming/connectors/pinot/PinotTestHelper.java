@@ -26,16 +26,18 @@ import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Helper class ot interact with the Pinot controller and broker in the e2e tests
  */
-public class PinotTestHelper extends PinotControllerApi {
+public class PinotTestHelper implements Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotTestHelper.class);
     private final String host;
     private final String brokerPort;
+    private final PinotControllerHttpClient httpClient;
 
     /**
      * @param host           Host the Pinot controller and broker are accessible at
@@ -43,9 +45,9 @@ public class PinotTestHelper extends PinotControllerApi {
      * @param brokerPort     A Pinot broker's external port at {@code host}
      */
     public PinotTestHelper(String host, String controllerPort, String brokerPort) {
-        super(host, controllerPort);
         this.host = host;
         this.brokerPort = brokerPort;
+        httpClient = new PinotControllerHttpClient(host, controllerPort);
     }
 
     /**
@@ -55,8 +57,8 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws IOException
      */
     private void addSchema(Schema tableSchema) throws IOException {
-        ApiResponse res = this.post("/schemas", JsonUtils.objectToString(tableSchema));
-        LOG.info("Schema add request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
+        PinotControllerHttpClient.ApiResponse res = httpClient.post("/schemas", JsonUtils.objectToString(tableSchema));
+        LOG.debug("Schema add request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
         }
@@ -69,8 +71,8 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws IOException
      */
     private void deleteSchema(Schema tableSchema) throws IOException {
-        ApiResponse res = this.delete(String.format("/schemas/%s", tableSchema.getSchemaName()));
-        LOG.info("Schema delete request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
+        PinotControllerHttpClient.ApiResponse res = httpClient.delete(String.format("/schemas/%s", tableSchema.getSchemaName()));
+        LOG.debug("Schema delete request for schema {} returned {}", tableSchema.getSchemaName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
         }
@@ -83,7 +85,7 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws IOException
      */
     private void addTable(TableConfig tableConfig) throws IOException {
-        ApiResponse res = this.post("/tables", JsonUtils.objectToString(tableConfig));
+        PinotControllerHttpClient.ApiResponse res = httpClient.post("/tables", JsonUtils.objectToString(tableConfig));
         LOG.info("Table creation request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
@@ -97,7 +99,7 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws IOException
      */
     private void removeTable(TableConfig tableConfig) throws IOException {
-        ApiResponse res = this.delete(String.format("/tables/%s", tableConfig.getTableName()));
+        PinotControllerHttpClient.ApiResponse res = httpClient.delete(String.format("/tables/%s", tableConfig.getTableName()));
         LOG.info("Table deletion request for table {} returned {}", tableConfig.getTableName(), res.responseBody);
         if (res.statusLine.getStatusCode() != 200) {
             throw new PinotControllerApiException(res.responseBody);
@@ -139,17 +141,28 @@ public class PinotTestHelper extends PinotControllerApi {
      * @throws Exception
      */
     public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws Exception {
-        String brokerHostPort = String.format("%s:%s", this.host, this.brokerPort);
-        Connection brokerConnection = ConnectionFactory.fromHostList(brokerHostPort);
+        Connection brokerConnection = null;
+        try {
+            String brokerHostPort = String.format("%s:%s", this.host, this.brokerPort);
+            brokerConnection = ConnectionFactory.fromHostList(brokerHostPort);
+            String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);
 
-        String query = String.format("SELECT * FROM %s LIMIT %d", tableName, maxNumberOfEntries);
+            Request pinotClientRequest = new Request("sql", query);
+            ResultSetGroup pinotResultSetGroup = brokerConnection.execute(pinotClientRequest);
 
-        Request pinotClientRequest = new Request("sql", query);
-        ResultSetGroup pinotResultSetGroup = brokerConnection.execute(pinotClientRequest);
-
-        if (pinotResultSetGroup.getResultSetCount() != 1) {
-            throw new Exception("Could not find any data in Pinot cluster.");
+            if (pinotResultSetGroup.getResultSetCount() != 1) {
+                throw new Exception("Could not find any data in Pinot cluster.");
+            }
+            return pinotResultSetGroup.getResultSet(0);
+        } finally {
+            if (brokerConnection != null) {
+                brokerConnection.close();
+            }
         }
-        return pinotResultSetGroup.getResultSet(0);
+    }
+
+    @Override
+    public void close() throws IOException {
+        httpClient.close();
     }
 }

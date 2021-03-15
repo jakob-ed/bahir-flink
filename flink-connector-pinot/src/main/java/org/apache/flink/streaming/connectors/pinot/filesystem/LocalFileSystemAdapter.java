@@ -18,6 +18,12 @@
 package org.apache.flink.streaming.connectors.pinot.filesystem;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.util.List;
+
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * The LocalFileSystemAdapter is used when sharing files via the local filesystem.
@@ -25,13 +31,34 @@ import java.io.File;
  */
 public class LocalFileSystemAdapter extends FileSystemAdapter {
 
-    @Override
-    public String copyToSharedFileSystem(File file) {
-        return file.getAbsolutePath();
+    private final String tempDirPrefix;
+
+    public LocalFileSystemAdapter(String tempDirPrefix) {
+        this.tempDirPrefix = checkNotNull(tempDirPrefix);
     }
 
+    /**
+     * Writes a list of serialized elements to the local filesystem.
+     *
+     * @param elements List of serialized elements
+     * @return Path identifying the written file
+     * @throws IOException
+     */
     @Override
-    public File copyToLocalFile(String path) {
-        return new File(path);
+    public String writeToSharedFileSystem(List<String> elements) throws IOException {
+        return FileSystemUtils.writeToLocalFile(elements, tempDirPrefix).getAbsolutePath();
+    }
+
+    /**
+     * Reads a previously written list of serialized elements from the local filesystem.
+     *
+     * @param path Path returned by {@link #writeToSharedFileSystem}
+     * @return List of serialized elements read from the local filesystem
+     * @throws IOException
+     */
+    @Override
+    public List<String> readFromSharedFileSystem(String path) throws IOException {
+        File dataFile = new File(path);
+        return Files.readAllLines(dataFile.toPath(), Charset.defaultCharset());
     }
 }

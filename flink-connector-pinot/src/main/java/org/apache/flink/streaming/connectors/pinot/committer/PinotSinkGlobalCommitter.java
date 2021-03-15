@@ -18,8 +18,9 @@
 package org.apache.flink.streaming.connectors.pinot.committer;
 
 import org.apache.flink.api.connector.sink.GlobalCommitter;
-import org.apache.flink.streaming.connectors.pinot.PinotControllerApi;
+import org.apache.flink.streaming.connectors.pinot.PinotControllerClient;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemUtils;
 import org.apache.pinot.common.segment.ReadMode;
 import org.apache.pinot.core.indexsegment.generator.SegmentGeneratorConfig;
 import org.apache.pinot.core.indexsegment.immutable.ImmutableSegment;
@@ -64,6 +65,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
     private final FileSystemAdapter fsAdapter;
     private final String timeColumnName;
     private final TimeUnit segmentTimeUnit;
+    private final PinotControllerClient pinotControllerClient;
 
     /**
      * @param pinotControllerHost  Host of the Pinot controller
@@ -74,7 +76,10 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * @param timeColumnName       Name of the column containing the timestamp
      * @param segmentTimeUnit      Unit of the time column
      */
-    public PinotSinkGlobalCommitter(String pinotControllerHost, String pinotControllerPort, String tableName, SegmentNameGenerator segmentNameGenerator, String tempDirPrefix, FileSystemAdapter fsAdapter, String timeColumnName, TimeUnit segmentTimeUnit) {
+    public PinotSinkGlobalCommitter(String pinotControllerHost, String pinotControllerPort,
+                                    String tableName, SegmentNameGenerator segmentNameGenerator,
+                                    String tempDirPrefix, FileSystemAdapter fsAdapter,
+                                    String timeColumnName, TimeUnit segmentTimeUnit) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);
@@ -83,6 +88,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         this.fsAdapter = checkNotNull(fsAdapter);
         this.timeColumnName = checkNotNull(timeColumnName);
         this.segmentTimeUnit = checkNotNull(segmentTimeUnit);
+        pinotControllerClient = new PinotControllerClient(pinotControllerHost, pinotControllerPort);
     }
 
     /**
@@ -94,11 +100,11 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      */
     @Override
     public List<PinotSinkGlobalCommittable> filterRecoveredCommittables(List<PinotSinkGlobalCommittable> globalCommittables) throws IOException {
-        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
+        // Holds identified global committables whose commit needs to be retried
         List<PinotSinkGlobalCommittable> committablesToRetry = new ArrayList<>();
 
         for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
-            CommitStatus commitStatus = this.getCommitStatus(globalCommittable);
+            CommitStatus commitStatus = getCommitStatus(globalCommittable);
 
             if (commitStatus.getMissingSegmentNames().isEmpty()) {
                 // All segments were already committed. Thus, we do not need to retry the commit.
@@ -109,11 +115,10 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                 // Some but not all segments were already committed. As we cannot assure the data
                 // files containing the same data as originally when recovering from failure,
                 // we delete the already committed segments in order to recommit them later on.
-                controllerApi.deleteSegment(tableName, existingSegment);
+                pinotControllerClient.deleteSegment(tableName, existingSegment);
             }
             committablesToRetry.add(globalCommittable);
         }
-
         return committablesToRetry;
     }
 
@@ -138,7 +143,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
             maxTimestamp = Long.max(maxTimestamp, committable.getMaxTimestamp());
         }
 
-        LOG.info("Combined {} committables into one global committable", committables.size());
+        LOG.debug("Combined {} committables into one global committable", committables.size());
         return new PinotSinkGlobalCommittable(dataFilePaths, minTimestamp, maxTimestamp);
     }
 
@@ -154,23 +159,22 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      */
     @Override
     public List<PinotSinkGlobalCommittable> commit(List<PinotSinkGlobalCommittable> globalCommittables) throws IOException {
-        // Retrieve the Pinot table schema and the Pinot table config from the Pinot controller
-        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
-        Schema tableSchema = controllerApi.getSchema(this.tableName);
-        TableConfig tableConfig = controllerApi.getTableConfig(this.tableName);
-
         // List of failed global committables that can be retried later on
         List<PinotSinkGlobalCommittable> failedCommits = new ArrayList<>();
+
+        // Retrieve the Pinot table schema and the Pinot table config from the Pinot controller
+        Schema tableSchema = pinotControllerClient.getSchema(tableName);
+        TableConfig tableConfig = pinotControllerClient.getTableConfig(tableName);
 
         for (PinotSinkGlobalCommittable globalCommittable : globalCommittables) {
             // Make sure to remove all previously committed segments in globalCommittable
             // when recovering from failure
-            CommitStatus commitStatus = this.getCommitStatus(globalCommittable);
+            CommitStatus commitStatus = getCommitStatus(globalCommittable);
             for (String existingSegment : commitStatus.getExistingSegmentNames()) {
                 // Some but not all segments were already committed. As we cannot assure the data
                 // files containing the same data as originally when recovering from failure,
                 // we delete the already committed segments in order to recommit them later on.
-                controllerApi.deleteSegment(tableName, existingSegment);
+                pinotControllerClient.deleteSegment(tableName, existingSegment);
             }
 
             // We use a thread pool in order to parallelize the segment creation and segment upload
@@ -178,15 +182,15 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
             Set<Future<Boolean>> resultFutures = new HashSet<>();
 
             // Commit all segments in globalCommittable
-            int sequenceId = 0;
-            for (String dataFilePath : globalCommittable.getDataFilePaths()) {
+            for (int sequenceId = 0; sequenceId < globalCommittable.getDataFilePaths().size(); sequenceId++) {
+                String dataFilePath = globalCommittable.getDataFilePaths().get(sequenceId);
                 // Get segment names with increasing sequenceIds
-                String segmentName = this.getSegmentName(globalCommittable, sequenceId++);
+                String segmentName = getSegmentName(globalCommittable, sequenceId);
                 // Segment committer handling the whole commit process for a single segment
                 Callable<Boolean> segmentCommitter = new SegmentCommitter(
-                        this.pinotControllerHost, this.pinotControllerPort, this.tempDirPrefix,
-                        this.fsAdapter, dataFilePath, segmentName, tableSchema, tableConfig,
-                        this.timeColumnName, this.segmentTimeUnit
+                        pinotControllerHost, pinotControllerPort, tempDirPrefix, fsAdapter,
+                        dataFilePath, segmentName, tableSchema, tableConfig, timeColumnName,
+                        segmentTimeUnit
                 );
                 // Submits the segment committer to the thread pool
                 resultFutures.add(pool.submit(segmentCommitter));
@@ -203,10 +207,11 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                         break;
                     }
                 }
-            } catch (Exception e) {
-                // In case of an exception mark the whole globalCommittable as failed
+            } catch (InterruptedException | ExecutionException e) {
+                // In case of an exception thrown while accessing commit status, mark the whole
+                // globalCommittable as failed
                 failedCommits.add(globalCommittable);
-                LOG.error(e.getMessage());
+                LOG.error("Accessing a SegmentCommitter thread errored with {}", e.getMessage(), e);
             }
         }
 
@@ -225,7 +230,8 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * Empty method, as we do not open any connections.
      */
     @Override
-    public void close() {
+    public void close() throws IOException {
+        pinotControllerClient.close();
     }
 
     /**
@@ -236,7 +242,8 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * @return generated segment name
      */
     private String getSegmentName(PinotSinkGlobalCommittable globalCommittable, int sequenceId) {
-        return this.segmentNameGenerator.generateSegmentName(sequenceId, globalCommittable.getMinTimestamp(), globalCommittable.getMaxTimestamp());
+        return segmentNameGenerator.generateSegmentName(sequenceId,
+                globalCommittable.getMinTimestamp(), globalCommittable.getMaxTimestamp());
     }
 
     /**
@@ -248,16 +255,14 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * @throws IOException
      */
     private CommitStatus getCommitStatus(PinotSinkGlobalCommittable globalCommittable) throws IOException {
-        PinotControllerApi controllerApi = new PinotControllerApi(this.pinotControllerHost, this.pinotControllerPort);
-
         List<String> existingSegmentNames = new ArrayList<>();
         List<String> missingSegmentNames = new ArrayList<>();
 
         // For all segment names that will be used to submit new segments, check whether the segment
         // name already exists for the target table
         for (int sequenceId = 0; sequenceId < globalCommittable.getDataFilePaths().size(); sequenceId++) {
-            String segmentName = this.getSegmentName(globalCommittable, sequenceId);
-            if (controllerApi.tableHasSegment(this.tableName, segmentName)) {
+            String segmentName = getSegmentName(globalCommittable, sequenceId);
+            if (pinotControllerClient.tableHasSegment(tableName, segmentName)) {
                 // Segment name already exists
                 existingSegmentNames.add(segmentName);
             } else {
@@ -265,14 +270,13 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                 missingSegmentNames.add(segmentName);
             }
         }
-
         return new CommitStatus(existingSegmentNames, missingSegmentNames);
     }
 
     /**
      * Wrapper for existing and missing segments in the Pinot cluster.
      */
-    static class CommitStatus {
+    private static class CommitStatus {
         private final List<String> existingSegmentNames;
         private final List<String> missingSegmentNames;
 
@@ -294,7 +298,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
      * Helper class for committing a single segment. Downloads a data file from the shared filesystem,
      * generates a segment from the data file and uploads segment to the Pinot controller.
      */
-    static class SegmentCommitter implements Callable<Boolean> {
+    private static class SegmentCommitter implements Callable<Boolean> {
 
         private static final Logger LOG = LoggerFactory.getLogger(SegmentCommitter.class);
 
@@ -320,7 +324,11 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
          * @param timeColumnName      Name of the column containing the timestamp
          * @param segmentTimeUnit     Unit of the time column
          */
-        public SegmentCommitter(String pinotControllerHost, String pinotControllerPort, String tempDirPrefix, FileSystemAdapter fsAdapter, String dataFilePath, String segmentName, Schema tableSchema, TableConfig tableConfig, String timeColumnName, TimeUnit segmentTimeUnit) {
+        public SegmentCommitter(String pinotControllerHost, String pinotControllerPort,
+                                String tempDirPrefix, FileSystemAdapter fsAdapter,
+                                String dataFilePath, String segmentName, Schema tableSchema,
+                                TableConfig tableConfig, String timeColumnName,
+                                TimeUnit segmentTimeUnit) {
             this.pinotControllerHost = pinotControllerHost;
             this.pinotControllerPort = pinotControllerPort;
             this.tempDirPrefix = tempDirPrefix;
@@ -343,23 +351,24 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         public Boolean call() {
             try {
                 // Download data file from the shared filesystem
-                LOG.info("Downloading data file {} from shared file system...", dataFilePath);
-                File segmentData = fsAdapter.copyToLocalFile(dataFilePath);
-                LOG.info("Successfully downloaded data file {} from shared file system", dataFilePath);
+                LOG.debug("Downloading data file {} from shared file system...", dataFilePath);
+                List<String> serializedElements = fsAdapter.readFromSharedFileSystem(dataFilePath);
+                File segmentData = FileSystemUtils.writeToLocalFile(serializedElements, tempDirPrefix);
+                LOG.debug("Successfully downloaded data file {} from shared file system", dataFilePath);
 
-                File segmentFile = Files.createTempDirectory(this.tempDirPrefix).toFile();
-                LOG.info("Creating segment in " + segmentFile.getAbsolutePath());
+                File segmentFile = Files.createTempDirectory(tempDirPrefix).toFile();
+                LOG.debug("Creating segment in " + segmentFile.getAbsolutePath());
 
                 // Creates a segment with name `segmentName` in `segmentFile`
-                this.generateSegment(segmentData, segmentFile, true);
+                generateSegment(segmentData, segmentFile, true);
 
                 // Uploads the recently created segment to the Pinot controller
-                this.uploadSegment(segmentFile);
+                uploadSegment(segmentFile);
 
                 // Commit successful
                 return true;
             } catch (IOException e) {
-                LOG.error(e.getMessage());
+                LOG.error("Error while committing segment stored on shared filesystem.", e);
 
                 // Commit failed
                 return false;
@@ -374,7 +383,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
          * @param outDir                    Segment target path
          * @param _postCreationVerification Verify segment after generation
          */
-        public void generateSegment(File dataFile, File outDir, Boolean _postCreationVerification) {
+        private void generateSegment(File dataFile, File outDir, Boolean _postCreationVerification) {
             SegmentGeneratorConfig segmentGeneratorConfig = new SegmentGeneratorConfig(tableConfig, tableSchema);
             segmentGeneratorConfig.setSegmentName(segmentName);
             segmentGeneratorConfig.setSegmentTimeUnit(segmentTimeUnit);
@@ -389,19 +398,22 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                 driver.init(segmentGeneratorConfig);
                 driver.build();
                 File indexDir = new File(outDir, segmentName);
-                LOG.info("Successfully created segment: {} in directory: {}", segmentName, indexDir);
+                LOG.debug("Successfully created segment: {} in directory: {}", segmentName, indexDir);
                 if (_postCreationVerification) {
-                    LOG.info("Verifying the segment by loading it");
+                    LOG.debug("Verifying the segment by loading it");
                     ImmutableSegment segment = ImmutableSegmentLoader.load(indexDir, ReadMode.mmap);
-                    LOG.info("Successfully loaded segment: {} of size: {} bytes", segmentName,
+                    LOG.debug("Successfully loaded segment: {} of size: {} bytes", segmentName,
                             segment.getSegmentSizeBytes());
                     segment.destroy();
                 }
             } catch (Exception e) {
-                LOG.error(e.getMessage());
-                throw new RuntimeException("Caught exception while generating segment from file: " + dataFile.getPath());
+                // SegmentIndexCreationDriverImpl throws generic Exceptions during init and build
+                // ImmutableSegmentLoader throws generic Exception during load
+                String message = String.format("Error while generating segment from file %s", dataFile.getAbsolutePath());
+                LOG.error(message, e);
+                throw new RuntimeException(message);
             }
-            LOG.info("Successfully created 1 segment from data file: {}", dataFile);
+            LOG.debug("Successfully created 1 segment from data file: {}", dataFile);
         }
 
         /**
@@ -410,15 +422,15 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
          * @param segmentFile File containing the segment to upload
          * @throws IOException
          */
-        public void uploadSegment(File segmentFile) throws IOException {
+        private void uploadSegment(File segmentFile) throws IOException {
             try {
                 UploadSegmentCommand cmd = new UploadSegmentCommand();
-                cmd.setControllerHost(this.pinotControllerHost);
-                cmd.setControllerPort(this.pinotControllerPort);
+                cmd.setControllerHost(pinotControllerHost);
+                cmd.setControllerPort(pinotControllerPort);
                 cmd.setSegmentDir(segmentFile.getAbsolutePath());
                 cmd.execute();
             } catch (Exception e) {
-                LOG.info("Could not upload segment {}", segmentFile.getAbsolutePath(), e);
+                LOG.error("Could not upload segment {}", segmentFile.getAbsolutePath(), e);
                 throw new IOException(e.getMessage());
             }
         }

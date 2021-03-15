@@ -17,9 +17,16 @@
 
 package org.apache.flink.streaming.connectors.pinot.filesystem;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Defines the interaction with a shared filesystem. The shared filesystem must be accessible from all
@@ -27,22 +34,23 @@ import java.io.Serializable;
  */
 public abstract class FileSystemAdapter implements Serializable {
 
+    private static final Logger LOG = LoggerFactory.getLogger(FileSystemAdapter.class);
+
     /**
-     * Copies a file from the local file system to the shared filesystem.
+     * Writes a list of serialized elements to the shared filesystem.
      *
-     * @param file Input file to copy
+     * @param elements List of serialized elements
      * @return Path identifying the remote file
      * @throws IOException
      */
-    public abstract String copyToSharedFileSystem(File file) throws IOException;
-
+    public abstract String writeToSharedFileSystem(List<String> elements) throws IOException;
 
     /**
-     * Copies a file from the remote filesystem to the local filesystem.
+     * Reads a previously written list of serialized elements from the shared filesystem.
      *
-     * @param path Path identifying the remote file
-     * @return File on local filesystem
+     * @param path Path returned by {@link #writeToSharedFileSystem}
+     * @return List of serialized elements read from the shared filesystem
      * @throws IOException
      */
-    public abstract File copyToLocalFile(String path) throws IOException;
+    public abstract List<String> readFromSharedFileSystem(String path) throws IOException;
 }

@@ -45,11 +45,11 @@ import java.util.concurrent.TimeUnit;
  * Base class for PinotSink e2e tests
  */
 @Testcontainers
-public class PinotTestBase extends TestLogger implements Serializable {
+public class PinotTestBase extends TestLogger {
 
-    public static final String DOCKER_IMAGE_NAME = "apachepinot/pinot:0.6.0";
-    public static final Integer PINOT_INTERNAL_BROKER_PORT = 8000;
-    public static final Integer PINOT_INTERNAL_CONTROLLER_PORT = 9000;
+    private static final String DOCKER_IMAGE_NAME = "apachepinot/pinot:0.6.0";
+    private static final Integer PINOT_INTERNAL_BROKER_PORT = 8000;
+    private static final Integer PINOT_INTERNAL_CONTROLLER_PORT = 9000;
 
     protected static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
     protected static final String TABLE_NAME = TABLE_CONFIG.getTableName();
@@ -65,7 +65,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
             .withCommand("QuickStart", "-type", "batch")
             .withExposedPorts(PINOT_INTERNAL_BROKER_PORT, PINOT_INTERNAL_CONTROLLER_PORT)
             .waitingFor(Wait
-                    .forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*\\n", 1)
+                    .forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*", 1)
                     // Allow Pinot to take up to 90s for starting up
                     .withStartupTimeout(Duration.ofSeconds(90))
             );
@@ -97,7 +97,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot container host
      */
-    public String getPinotHost() {
+    protected String getPinotHost() {
         return this.pinot.getHost();
     }
 
@@ -107,7 +107,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot controller port
      */
-    public String getPinotControllerPort() {
+    protected String getPinotControllerPort() {
         return this.pinot.getMappedPort(PINOT_INTERNAL_CONTROLLER_PORT).toString();
     }
 
@@ -116,14 +116,14 @@ public class PinotTestBase extends TestLogger implements Serializable {
      *
      * @return Pinot broker port
      */
-    public String getPinotBrokerPort() {
+    protected String getPinotBrokerPort() {
         return this.pinot.getMappedPort(PINOT_INTERNAL_BROKER_PORT).toString();
     }
 
     /**
      * Class defining the elements passed to the {@link PinotSink} during the tests.
      */
-    static class SingleColumnTableRow {
+    protected static class SingleColumnTableRow {
 
         private String _col1;
         private Long _timestamp;
@@ -158,7 +158,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
      * EventTimeExtractor for {@link SingleColumnTableRow} used in e2e tests.
      * Extracts the timestamp column from {@link SingleColumnTableRow}.
      */
-    static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
+    protected static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
 
         @Override
         public long getEventTime(SingleColumnTableRow element, SinkWriter.Context context) {
@@ -179,7 +179,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
     /**
      * Serializes {@link SingleColumnTableRow} to JSON.
      */
-    static class SingleColumnTableRowSerializer extends JsonSerializer<SingleColumnTableRow> {
+    protected static class SingleColumnTableRowSerializer extends JsonSerializer<SingleColumnTableRow> {
 
         @Override
         public String toJson(SingleColumnTableRow element) {
@@ -190,7 +190,7 @@ public class PinotTestBase extends TestLogger implements Serializable {
     /**
      * Pinot table configuration helpers.
      */
-    static class PinotTableConfig {
+    private static class PinotTableConfig {
 
         static final String TABLE_NAME = "FLTable";
         static final String SCHEMA_NAME = "FLTableSchema";

@@ -22,12 +22,14 @@ import org.apache.commons.lang3.SerializationUtils;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 
+import java.io.*;
+
 /**
  * Serializer for {@link PinotSinkCommittable}
  */
 public class PinotSinkCommittableSerializer implements SimpleVersionedSerializer<PinotSinkCommittable> {
 
-    private static final int CURRENT_VERSION = 0;
+    private static final int CURRENT_VERSION = 1;
 
     @Override
     public int getVersion() {
@@ -35,12 +37,34 @@ public class PinotSinkCommittableSerializer implements SimpleVersionedSerializer
     }
 
     @Override
-    public byte[] serialize(PinotSinkCommittable pinotSinkCommittable) {
-        return SerializationUtils.serialize(pinotSinkCommittable);
+    public byte[] serialize(PinotSinkCommittable pinotSinkCommittable) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             DataOutputStream out = new DataOutputStream(baos)) {
+            out.writeLong(pinotSinkCommittable.getMinTimestamp());
+            out.writeLong(pinotSinkCommittable.getMaxTimestamp());
+            out.writeUTF(pinotSinkCommittable.getDataFilePath());
+            out.flush();
+            return baos.toByteArray();
+        }
     }
 
     @Override
-    public PinotSinkCommittable deserialize(int i, byte[] bytes) {
-        return SerializationUtils.deserialize(bytes);
+    public PinotSinkCommittable deserialize(int version, byte[] serialized) throws IOException {
+        switch (version) {
+            case 1:
+                return deserializeV1(serialized);
+            default:
+                throw new IOException("Unrecognized version or corrupt state: " + version);
+        }
+    }
+
+    private PinotSinkCommittable deserializeV1(byte[] serialized) throws IOException {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+             DataInputStream in = new DataInputStream(bais)) {
+            long minTimestamp = in.readLong();
+            long maxTimestamp = in.readLong();
+            String dataFilePath = in.readUTF();
+            return new PinotSinkCommittable(dataFilePath, minTimestamp, maxTimestamp);
+        }
     }
 }

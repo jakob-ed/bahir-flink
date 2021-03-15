@@ -40,7 +40,7 @@ import java.util.stream.IntStream;
 /**
  * E2e tests for Pinot Sink using BATCH and STREAMING execution mode
  */
-public class EmulatedPinotSinkTest extends PinotTestBase {
+public class PinotSinkTest extends PinotTestBase {
 
     /**
      * Tests the BATCH execution of the {@link PinotSink}.
@@ -64,33 +64,33 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
         checkForDataInPinot(data, data.size());
     }
 
-    /**
-     * Tests the STREAMING execution of the {@link PinotSink}.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testStreamingSink() throws Exception {
-        final Configuration conf = new Configuration();
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
-        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        env.setParallelism(2);
-        env.enableCheckpointing(50);
-
-        List<SingleColumnTableRow> data = getTestData(1000);
-        this.setupDataStream(env, data);
-
-        // Run
-        env.execute();
-
-        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
-        TimeUnit.SECONDS.sleep(5);
-
-        // We only expect the first 100 elements to be already committed to Pinot.
-        // The remaining would follow once we increase the input data size.
-        // The stream executions stops once the last input tuple was sent to the sink.
-        checkForDataInPinot(data, 100);
-    }
+//    /**
+//     * Tests the STREAMING execution of the {@link PinotSink}.
+//     *
+//     * @throws Exception
+//     */
+//    @Test
+//    public void testStreamingSink() throws Exception {
+//        final Configuration conf = new Configuration();
+//        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+//        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+//        env.setParallelism(2);
+//        env.enableCheckpointing(50);
+//
+//        List<SingleColumnTableRow> data = getTestData(1000);
+//        this.setupDataStream(env, data);
+//
+//        // Run
+//        env.execute();
+//
+//        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
+//        TimeUnit.SECONDS.sleep(5);
+//
+//        // We only expect the first 100 elements to be already committed to Pinot.
+//        // The remaining would follow once we increase the input data size.
+//        // The stream executions stops once the last input tuple was sent to the sink.
+//        checkForDataInPinot(data, 100);
+//    }
 
     /**
      * Generates a small test dataset consisting of {@link SingleColumnTableRow}s.
@@ -116,14 +116,15 @@ public class EmulatedPinotSinkTest extends PinotTestBase {
                 env.fromCollection(data)
                         .name("Test input");
 
+        String tempDirPrefix = "flink-pinot-connector-test";
         PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
-        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter();
+        FileSystemAdapter fsAdapter = new LocalFileSystemAdapter(tempDirPrefix);
         JsonSerializer<SingleColumnTableRow> jsonSerializer = new SingleColumnTableRowSerializer();
 
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         // Sink into Pinot
-        theData.sinkTo(new PinotSink<>(getPinotHost(), getPinotControllerPort(), TABLE_NAME, 5, "flink-pinot-connector-test", jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
+        theData.sinkTo(new PinotSink<>(getPinotHost(), getPinotControllerPort(), TABLE_NAME, 5, tempDirPrefix, jsonSerializer, eventTimeExtractor, segmentNameGenerator, fsAdapter))
                 .name("Pinot sink");
     }
 

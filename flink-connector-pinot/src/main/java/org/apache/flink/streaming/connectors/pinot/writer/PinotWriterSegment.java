@@ -20,15 +20,9 @@ package org.apache.flink.streaming.connectors.pinot.writer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,30 +38,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class PinotWriterSegment<IN> implements Serializable {
 
-    private static final Logger LOG = LoggerFactory.getLogger("PinotWriterSegment");
-
     private final int maxRowsPerSegment;
-    private final String tempDirPrefix;
     private final JsonSerializer<IN> jsonSerializer;
     private final FileSystemAdapter fsAdapter;
 
     private boolean acceptsElements = true;
 
     private final List<IN> elements;
-    private File dataFile;
+    private String dataPathOnSharedFS;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
 
     /**
      * @param maxRowsPerSegment Maximum number of rows to be stored within a Pinot segment
-     * @param tempDirPrefix     Prefix for temp directories used
      * @param jsonSerializer    Serializer used to convert elements to JSON
      * @param fsAdapter         Filesystem adapter used to save files for sharing files across nodes
      */
-    protected PinotWriterSegment(int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
+    protected PinotWriterSegment(int maxRowsPerSegment, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         checkArgument(maxRowsPerSegment > 0L);
         this.maxRowsPerSegment = maxRowsPerSegment;
-        this.tempDirPrefix = checkNotNull(tempDirPrefix);
         this.jsonSerializer = checkNotNull(jsonSerializer);
         this.fsAdapter = checkNotNull(fsAdapter);
         this.elements = new ArrayList<>();
@@ -82,18 +71,18 @@ public class PinotWriterSegment<IN> implements Serializable {
      * @throws IOException
      */
     public void write(IN element, long timestamp) throws IOException {
-        if (!this.acceptsElements()) {
+        if (!acceptsElements()) {
             throw new IllegalStateException("This PinotSegmentWriter does not accept any elements anymore.");
         }
-        this.elements.add(element);
-        this.minTimestamp = Long.min(this.minTimestamp, timestamp);
-        this.maxTimestamp = Long.max(this.maxTimestamp, timestamp);
+        elements.add(element);
+        minTimestamp = Long.min(minTimestamp, timestamp);
+        maxTimestamp = Long.max(maxTimestamp, timestamp);
 
         // Writes elements to local filesystem once the maximum number of items is reached
-        if (this.elements.size() == this.maxRowsPerSegment) {
+        if (elements.size() == maxRowsPerSegment) {
             acceptsElements = false;
-            dataFile = this.writeToLocalFile();
-            this.elements.clear();
+            dataPathOnSharedFS = writeToSharedFilesystem();
+            elements.clear();
         }
     }
 
@@ -105,36 +94,24 @@ public class PinotWriterSegment<IN> implements Serializable {
      * @throws IOException
      */
     public PinotSinkCommittable prepareCommit() throws IOException {
-        if (dataFile == null) {
-            dataFile = this.writeToLocalFile();
+        if (dataPathOnSharedFS == null) {
+            dataPathOnSharedFS = writeToSharedFilesystem();
         }
-        String path = fsAdapter.copyToSharedFileSystem(dataFile);
-        return new PinotSinkCommittable(path, this.minTimestamp, this.maxTimestamp);
+        return new PinotSinkCommittable(dataPathOnSharedFS, minTimestamp, maxTimestamp);
     }
 
     /**
-     * Takes elements from {@link #elements} and writes them to the local filesystem in JSON format.
+     * Takes elements from {@link #elements} and writes them to the shared filesystem in JSON format.
      *
-     * @return File containing the just written data
+     * @return Path pointing to just written data on shared filesystem
      * @throws IOException
      */
-    private File writeToLocalFile() throws IOException {
-        // Create folder in temp directory for storing data
-        Path dir = Files.createTempDirectory(tempDirPrefix);
-        LOG.info("Using path '{}' for storing committables", dir.toAbsolutePath());
-
-        // Stores row items in JSON format on disk
-        List<String> json = this.elements.stream()
-                .map(this.jsonSerializer::toJson)
+    private String writeToSharedFilesystem() throws IOException {
+        // Convert row items to JSON format
+        List<String> serialized = elements.stream()
+                .map(jsonSerializer::toJson)
                 .collect(Collectors.toList());
-
-        String FILE_NAME = "data.json";
-
-        File dataFile = new File(dir.toAbsolutePath() + "/" + FILE_NAME);
-        Files.write(dataFile.toPath(), json, Charset.defaultCharset());
-        LOG.info("Successfully written data to file {} in directory {}", FILE_NAME, dir.getFileName());
-
-        return dataFile;
+        return fsAdapter.writeToSharedFileSystem(serialized);
     }
 
     /**

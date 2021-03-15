@@ -18,16 +18,19 @@
 
 package org.apache.flink.streaming.connectors.pinot.serializer;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
+
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Serializer for {@link PinotSinkGlobalCommittable}
  */
 public class PinotSinkGlobalCommittableSerializer implements SimpleVersionedSerializer<PinotSinkGlobalCommittable> {
 
-    private static final int CURRENT_VERSION = 0;
+    private static final int CURRENT_VERSION = 1;
 
     @Override
     public int getVersion() {
@@ -35,12 +38,44 @@ public class PinotSinkGlobalCommittableSerializer implements SimpleVersionedSeri
     }
 
     @Override
-    public byte[] serialize(PinotSinkGlobalCommittable pinotSinkGlobalCommittable) {
-        return SerializationUtils.serialize(pinotSinkGlobalCommittable);
+    public byte[] serialize(PinotSinkGlobalCommittable pinotSinkGlobalCommittable) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             DataOutputStream out = new DataOutputStream(baos)) {
+            out.writeLong(pinotSinkGlobalCommittable.getMinTimestamp());
+            out.writeLong(pinotSinkGlobalCommittable.getMaxTimestamp());
+
+            int size = pinotSinkGlobalCommittable.getDataFilePaths().size();
+            out.writeInt(size);
+            for (String dataFilePath : pinotSinkGlobalCommittable.getDataFilePaths()) {
+                out.writeUTF(dataFilePath);
+            }
+            out.flush();
+            return baos.toByteArray();
+        }
     }
 
     @Override
-    public PinotSinkGlobalCommittable deserialize(int i, byte[] bytes) {
-        return SerializationUtils.deserialize(bytes);
+    public PinotSinkGlobalCommittable deserialize(int version, byte[] serialized) throws IOException {
+        switch (version) {
+            case 1:
+                return deserializeV1(serialized);
+            default:
+                throw new IOException("Unrecognized version or corrupt state: " + version);
+        }
+    }
+
+    private PinotSinkGlobalCommittable deserializeV1(byte[] serialized) throws IOException {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+             DataInputStream in = new DataInputStream(bais)) {
+            long minTimestamp = in.readLong();
+            long maxTimestamp = in.readLong();
+
+            long size = in.readInt();
+            List<String> dataFilePaths = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                dataFilePaths.add(in.readUTF());
+            }
+            return new PinotSinkGlobalCommittable(dataFilePaths, minTimestamp, maxTimestamp);
+        }
     }
 }

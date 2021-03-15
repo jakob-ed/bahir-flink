@@ -158,8 +158,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
     @Override
     public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
         return new PinotSinkWriter<>(
-                context.getSubtaskId(), this.maxRowsPerSegment, this.eventTimeExtractor,
-                this.tempDirPrefix, this.jsonSerializer, this.fsAdapter
+                context.getSubtaskId(), maxRowsPerSegment, eventTimeExtractor,
+                jsonSerializer, fsAdapter
         );
     }
 
@@ -181,9 +181,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         String timeColumnName = eventTimeExtractor.getTimeColumn();
         TimeUnit segmentTimeUnit = eventTimeExtractor.getSegmentTimeUnit();
         PinotSinkGlobalCommitter committer = new PinotSinkGlobalCommitter(
-                this.pinotControllerHost, this.pinotControllerPort, this.tableName,
-                this.segmentNameGenerator, this.tempDirPrefix, this.fsAdapter,
-                timeColumnName, segmentTimeUnit
+                pinotControllerHost, pinotControllerPort, tableName, segmentNameGenerator,
+                tempDirPrefix, fsAdapter, timeColumnName, segmentTimeUnit
         );
         return Optional.of(committer);
     }
@@ -285,7 +284,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
          * @return Builder
          */
         public Builder<IN> withSimpleSegmentNameGenerator(String segmentNamePostfix) {
-            return this.withSegmentNameGenerator(new SimpleSegmentNameGenerator(this.tableName, segmentNamePostfix));
+            return withSegmentNameGenerator(new SimpleSegmentNameGenerator(tableName, segmentNamePostfix));
         }
 
         /**
@@ -308,8 +307,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
          *
          * @return Builder
          */
-        public Builder<IN> withLocalFileSystemAdapter() {
-            return this.withFileSystemAdapter(new LocalFileSystemAdapter());
+        public Builder<IN> withLocalFileSystemAdapter(String tempDirPrefix) {
+            return withFileSystemAdapter(new LocalFileSystemAdapter(tempDirPrefix));
         }
 
         /**
@@ -341,15 +340,15 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
          */
         public PinotSink<IN> build() {
             return new PinotSink<>(
-                    this.pinotControllerHost,
-                    this.pinotControllerPort,
-                    this.tableName,
-                    this.maxRowsPerSegment,
-                    this.tempDirPrefix,
-                    this.jsonSerializer,
-                    this.eventTimeExtractor,
-                    this.segmentNameGenerator,
-                    this.fsAdapter
+                    pinotControllerHost,
+                    pinotControllerPort,
+                    tableName,
+                    maxRowsPerSegment,
+                    tempDirPrefix,
+                    jsonSerializer,
+                    eventTimeExtractor,
+                    segmentNameGenerator,
+                    fsAdapter
             );
         }
     }

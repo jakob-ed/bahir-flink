@@ -41,11 +41,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, Void> {
 
-    private static final Logger LOG = LoggerFactory.getLogger("PinotSinkWriter");
+    private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
     private final int maxRowsPerSegment;
-    private EventTimeExtractor<IN> eventTimeExtractor;
-    private final String tempDirPrefix;
+    private final EventTimeExtractor<IN> eventTimeExtractor;
     private final JsonSerializer<IN> jsonSerializer;
 
     private final List<PinotWriterSegment<IN>> activeSegments;
@@ -57,15 +56,13 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      * @param subtaskId          Subtask id provided by Flink
      * @param maxRowsPerSegment  Maximum number of rows to be stored within a Pinot segment
      * @param eventTimeExtractor Defines the way event times are extracted from received objects
-     * @param tempDirPrefix      Prefix for temp directories used
      * @param jsonSerializer     Serializer used to convert elements to JSON
      * @param fsAdapter          Filesystem adapter used to save files for sharing files across nodes
      */
-    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, String tempDirPrefix, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
+    public PinotSinkWriter(int subtaskId, int maxRowsPerSegment, EventTimeExtractor<IN> eventTimeExtractor, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         this.subtaskId = subtaskId;
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.eventTimeExtractor = checkNotNull(eventTimeExtractor);
-        this.tempDirPrefix = checkNotNull(tempDirPrefix);
         this.jsonSerializer = checkNotNull(jsonSerializer);
         this.fsAdapter = checkNotNull(fsAdapter);
         this.activeSegments = new ArrayList<>();
@@ -80,8 +77,8 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      */
     @Override
     public void write(IN element, Context context) throws IOException {
-        final PinotWriterSegment<IN> inProgressSegment = this.getOrCreateInProgressSegment();
-        inProgressSegment.write(element, this.eventTimeExtractor.getEventTime(element, context));
+        final PinotWriterSegment<IN> inProgressSegment = getOrCreateInProgressSegment();
+        inProgressSegment.write(element, eventTimeExtractor.getEventTime(element, context));
     }
 
     /**
@@ -93,19 +90,22 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      */
     @Override
     public List<PinotSinkCommittable> prepareCommit(boolean flush) throws IOException {
-        List<PinotWriterSegment<IN>> segmentsToCommit = this.activeSegments.stream()
+        // Identify segments to commit. If the flush argument is set all segments shall be committed.
+        // Otherwise, take only those PinotWriterSegments that do not accept any more elements.
+        List<PinotWriterSegment<IN>> segmentsToCommit = activeSegments.stream()
                 .filter(s -> flush || !s.acceptsElements())
                 .collect(Collectors.toList());
-        LOG.info("Identified {} segments to commit [subtaskId={}]", segmentsToCommit.size(), this.subtaskId);
+        LOG.debug("Identified {} segments to commit [subtaskId={}]", segmentsToCommit.size(), subtaskId);
 
-        LOG.info("Creating committables... [subtaskId={}]", subtaskId);
+        LOG.debug("Creating committables... [subtaskId={}]", subtaskId);
         List<PinotSinkCommittable> committables = new ArrayList<>();
         for (final PinotWriterSegment<IN> segment : segmentsToCommit) {
             committables.add(segment.prepareCommit());
         }
-        LOG.info("Created {} committables [subtaskId={}]", committables.size(), subtaskId);
+        LOG.debug("Created {} committables [subtaskId={}]", committables.size(), subtaskId);
 
-        this.activeSegments.removeAll(segmentsToCommit);
+        // Remove all PinotWriterSegments that will be emitted within the committables.
+        activeSegments.removeAll(segmentsToCommit);
         return committables;
     }
 
@@ -115,18 +115,18 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
      * @return {@link PinotWriterSegment} accepting at least one more element
      */
     private PinotWriterSegment<IN> getOrCreateInProgressSegment() {
-        final PinotWriterSegment<IN> latestSegment = Iterables.getLast(this.activeSegments, null);
+        final PinotWriterSegment<IN> latestSegment = Iterables.getLast(activeSegments, null);
         if (latestSegment == null || !latestSegment.acceptsElements()) {
-            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(this.maxRowsPerSegment, this.tempDirPrefix, this.jsonSerializer, this.fsAdapter);
-            this.activeSegments.add(inProgressSegment);
+            final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(maxRowsPerSegment, jsonSerializer, fsAdapter);
+            activeSegments.add(inProgressSegment);
             return inProgressSegment;
         }
         return latestSegment;
     }
 
     /**
-     * Snapshots the current state to be stored within a checkpoint. As we do not need to save any
-     * information in snapshots, this method always returns an empty ArrayList.
+     * As we do not need to save any information in snapshots,
+     * this method always returns an empty ArrayList.
      *
      * @return always an empty ArrayList
      */
