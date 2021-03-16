@@ -61,6 +61,20 @@ StreamExecutionEnvironment env = ...
         dataStream.addSink(pinotSink);
 ```
 
+## Options
+| Option                 | Description                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------- | 
+| `pinotControllerHost`  | Host of the Pinot controller                                                     |
+| `pinotControllerPort`  | Port of the Pinot controller                                                     |
+| `tableName`            | Target Pinot table's name                                                        |
+| `maxRowsPerSegment`    | Maximum number of rows to be stored within a Pinot segment                       |
+| `tempDirPrefix`         | Prefix for temp directories used                                                  |
+| `jsonSerializer`       | Serializer used to convert elements to JSON                                      |
+| `eventTimeExtractor`   | Defines the way event times are extracted from received objects                   |
+| `segmentNameGenerator` | Pinot segment name generator                                                     |
+| `fsAdapter`            | Filesystem adapter used to save files for sharing files across nodes               |
+| `numCommitThreads`     | Number of threads used in the `PinotSinkGlobalCommitter` for committing segments |
+
 ## Architecture
 The Pinot sink stores elements from upstream Flink tasks in an Apache Pinot table.
 We support two execution modes
@@ -102,7 +116,7 @@ Moreover, the `PinotSinkGlobalCommittable` holds references to all data files fr
 
 When finally committing a `PinotSinkGlobalCommittable` the following procedure is executed:
 * Read all data files from the shared filesystem (using `FileSystemAdapter`).
-* Generate Pinot segment names using `PinotsinkSegmentNameGenerator`.
+* Generate Pinot segment names using `PinotSinkSegmentNameGenerator`.
 * Create Pinot segments with minimum and maximum timestamps (stored in `PinotSinkGlobalCommittable`) and previously generated segment assigned.
 * Upload Pinot segments to the Pinot controller
 
