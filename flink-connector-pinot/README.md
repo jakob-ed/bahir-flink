@@ -69,7 +69,17 @@ The `PinotSinkWriter` holds a list of `PinotWriterSegment`s where each `PinotWri
 Whenever the maximum number of elements to hold is not yet reached the `PinotWriterSegment` is considered to be active. 
 Once the maximum number of elements to hold was reached, an active `PinotWriterSegment` gets inactivated and a new empty `PinotWriterSegment` is created.
 
-<img width="500" alt="PinotSinkWriter" src="docs/images/SinkWriter.png">
+<img width="500" alt="PinotSinkWriter" src="docs/images/PinotSinkWriter.png">
 
 Thus, there is always one active `PinotWriterSegment` that new incoming elements will go to.
 Over time, the list of `PinotWriterSegment` per `PinotSinkWriter` increases up to the point where a checkpoint is created.
+
+**Checkpointing**  
+On checkpoint creation `PinotSinkWriter.prepareCommit` gets called by the Flink environment.
+This triggers the creation of `PinotSinkCommittable`s where each inactive `PinotWriterSegment` creates exactly one `PinotSinkCommittable`. 
+
+<img width="500" alt="PinotSinkWriter" src="docs/images/PinotSinkWriter_prepareCommit.png.png">
+
+In order to create a `PinotSinkCommittable`, a file containing a `PinotWriterSegment`'s elements is on the shared filesystem defined via `FileSystemAdapter`.
+The file contains a list of elements in JSON format. The serialization is done via `JSONSerializer`.
+A `PinotSinkCommittables` then holds the path to the data file on the shared filesystem as well as the minimum and maximum timestamp of all contained elements (extracted via `EventTimeExtractor`).
