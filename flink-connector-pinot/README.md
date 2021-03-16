@@ -65,6 +65,11 @@ We support two execution modes
 
 ### PinotSinkWriter
 Whenever the sink receives elements from upstream tasks, they are received by an instance of the PinotSinkWriter.
-The PinotSinkWriter will create 
+The `PinotSinkWriter` holds a list of `PinotWriterSegment`s where each `PinotWriterSegment` is capable of storing `maxRowsPerSegment` elements.
+Whenever the maximum number of elements to hold is not yet reached the `PinotWriterSegment` is considered to be active. 
+Once the maximum number of elements to hold was reached, an active `PinotWriterSegment` gets inactivated and a new empty `PinotWriterSegment` is created.
 
-![](docs/images/SinkWriter.png){:width="300px"}
+<img width="500" alt="PinotSinkWriter" src="docs/images/SinkWriter.png">
+
+Thus, there is always one active `PinotWriterSegment` that new incoming elements will go to.
+Over time, the list of `PinotWriterSegment` per `PinotSinkWriter` increases up to the point where a checkpoint is created.
