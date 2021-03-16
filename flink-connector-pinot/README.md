@@ -51,6 +51,10 @@ StreamExecutionEnvironment env = ...
 
         // Prefix within the local filesystem's temp directory used for storing intermediate files
         .withTempDirectoryPrefix(String tempDirPrefix)
+        
+        // Number of threads used in the `PinotSinkGlobalCommitter` to commit a batch of segments
+        // Optional - Default is 4
+        .withNumCommitThreads(int numCommitThreads)
 
         // Builds the PinotSink
         .build()
@@ -83,3 +87,26 @@ This triggers the creation of `PinotSinkCommittable`s where each inactive `Pinot
 In order to create a `PinotSinkCommittable`, a file containing a `PinotWriterSegment`'s elements is on the shared filesystem defined via `FileSystemAdapter`.
 The file contains a list of elements in JSON format. The serialization is done via `JSONSerializer`.
 A `PinotSinkCommittables` then holds the path to the data file on the shared filesystem as well as the minimum and maximum timestamp of all contained elements (extracted via `EventTimeExtractor`).
+
+
+### PinotSinkGlobalCommitter
+In order to be able to follow the guidelines for Pinot segment naming, we need to include the minimum and maximum timestamp of an element in the metadata of a segment and in its name.
+The minimum and maximum timestamp of all elements between two checkpoints is determined at a parallelism of 1 in the `PinotSinkGlobalCommitter`.
+This procedure allows recovering from failure by deleting previously uploaded segments which prevents having duplicate segments in the Pinot table.
+
+<img height="250" alt="PinotSinkGlobalCommitter combine" src="docs/images/PinotSinkGlobalCommitter_combine.png">
+
+After all `PinotSinkWriter` subtasks emitted their `PinotSinkCommittable`s, they are sent to the `PinotSinkGlobalCommitter` which first combines all collected `PinotSinkCommittable`s into a single `PinotSinkGlobalCommittable`.
+Therefore, the minimum and maximum timestamps of all collected `PinotSinkCommittable`s is determined. 
+Moreover, the `PinotSinkGlobalCommittable` holds references to all data files from the `PinotSinkCommittable`s.
+
+When finally committing a `PinotSinkGlobalCommittable` the following procedure is executed:
+* Read all data files from the shared filesystem (using `FileSystemAdapter`).
+* Generate Pinot segment names using `PinotsinkSegmentNameGenerator`.
+* Create Pinot segments with minimum and maximum timestamps (stored in `PinotSinkGlobalCommittable`) and previously generated segment assigned.
+* Upload Pinot segments to the Pinot controller
+
+
+## Delivery Guarantees
+Resulting from the above described architecture the `PinotSink` provides an at-least-once delivery guarantee.
+While the failure recovery mechanism ensures that duplicate segments are prevented, there might be temporary inconsistencies in the Pinot table which can result in downstream tasks receiving an element multiple times.
