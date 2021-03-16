@@ -295,7 +295,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         private final List<String> existingSegmentNames;
         private final List<String> missingSegmentNames;
 
-        public CommitStatus(List<String> existingSegmentNames, List<String> missingSegmentNames) {
+        CommitStatus(List<String> existingSegmentNames, List<String> missingSegmentNames) {
             this.existingSegmentNames = existingSegmentNames;
             this.missingSegmentNames = missingSegmentNames;
         }
@@ -340,7 +340,7 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
          * @param timeColumnName      Name of the column containing the timestamp
          * @param segmentTimeUnit     Unit of the time column
          */
-        public SegmentCommitter(String pinotControllerHost, String pinotControllerPort,
+        SegmentCommitter(String pinotControllerHost, String pinotControllerPort,
                                 File tempDirectory, FileSystemAdapter fsAdapter,
                                 String dataFilePath, String segmentName, Schema tableSchema,
                                 TableConfig tableConfig, String timeColumnName,

@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
@@ -30,14 +31,15 @@ import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -46,6 +48,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Testcontainers
 public class PinotTestBase extends TestLogger {
+
+    protected static final Logger LOG = LoggerFactory.getLogger(PinotTestBase.class);
 
     private static final String DOCKER_IMAGE_NAME = "apachepinot/pinot:0.6.0";
     private static final Integer PINOT_INTERNAL_BROKER_PORT = 8000;
@@ -64,10 +68,24 @@ public class PinotTestBase extends TestLogger {
     public GenericContainer<?> pinot = new GenericContainer<>(DockerImageName.parse(DOCKER_IMAGE_NAME))
             .withCommand("QuickStart", "-type", "batch")
             .withExposedPorts(PINOT_INTERNAL_BROKER_PORT, PINOT_INTERNAL_CONTROLLER_PORT)
-            .waitingFor(Wait
-                    .forLogMessage(".*You can always go to http://localhost:9000 to play around in the query console.*", 1)
-                    // Allow Pinot to take up to 90s for starting up
-                    .withStartupTimeout(Duration.ofSeconds(90))
+            .waitingFor(
+                    // Wait for controller, server and broker instances to be available
+                    new HttpWaitStrategy()
+                            .forPort(PINOT_INTERNAL_CONTROLLER_PORT)
+                            .forPath("/instances")
+                            .forStatusCode(200)
+                            .forResponsePredicate(res -> {
+                                try {
+                                    JsonNode instances = JsonUtils.stringToJsonNode(res).get("instances");
+                                    // Expect 3 instances to be up and running (controller, broker and server)
+                                    return instances.size() == 3;
+                                } catch (IOException e) {
+                                    LOG.error("Error while reading json response in HttpWaitStrategy.", e);
+                                }
+                                return false;
+                            })
+                            // Allow Pinot to take up to 180s for starting up
+                            .withStartupTimeout(Duration.ofSeconds(180))
             );
 
     /**

@@ -22,6 +22,7 @@ import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
@@ -31,9 +32,9 @@ import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNam
 import org.apache.pinot.client.ResultSet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.opentest4j.AssertionFailedError;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -59,9 +60,7 @@ public class PinotSinkTest extends PinotTestBase {
         // Run
         env.execute();
 
-        TimeUnit.SECONDS.sleep(5);
-
-        checkForDataInPinot(data, data.size());
+        checkForDataInPinotWithRetry(data, data.size(), 20);
     }
 
     /**
@@ -83,13 +82,10 @@ public class PinotSinkTest extends PinotTestBase {
         // Run
         env.execute();
 
-        // Wait until the checkpoint was created and the segments were committed by the GlobalCommitter
-        TimeUnit.SECONDS.sleep(5);
-
         // We only expect the first 100 elements to be already committed to Pinot.
         // The remaining would follow once we increase the input data size.
         // The stream executions stops once the last input tuple was sent to the sink.
-        checkForDataInPinot(data, 100);
+        checkForDataInPinotWithRetry(data, 100, 20);
     }
 
     /**
@@ -138,12 +134,41 @@ public class PinotSinkTest extends PinotTestBase {
     }
 
     /**
-     * Checks whether data is present in the Pinot target table
+     * As Pinot might take some time to index the recently pushed segments we might need to retry
+     * the {@link #checkForDataInPinot} method multiple times. This method provides a simple wrapper
+     * using linear retry backoff delay.
      *
-     * @param data Data to expect in the Pinot table
-     * @throws Exception
+     * @param data                  Data to expect in the Pinot table
+     * @param numElementsToCheck    First n elements to check
+     * @param retryTimeoutInSeconds Maximum duration in seconds to wait for the data to arrive
+     * @throws InterruptedException
      */
-    private void checkForDataInPinot(List<SingleColumnTableRow> data, int numElementsToCheck) throws Exception {
+    private void checkForDataInPinotWithRetry(List<SingleColumnTableRow> data, int numElementsToCheck, int retryTimeoutInSeconds) throws InterruptedException {
+        long endTime = System.currentTimeMillis() + 1000L * retryTimeoutInSeconds;
+        // Use max 10 retries with linear retry backoff delay
+        long retryDelay = 1000L / 10 * retryTimeoutInSeconds;
+        do {
+            try {
+                checkForDataInPinot(data, numElementsToCheck);
+                // In case of no error, we can skip further retries
+                return;
+            } catch (AssertionFailedError | PinotControllerApiException e) {
+                // In case of an error retry after delay
+                Thread.sleep(retryDelay);
+            }
+        } while (System.currentTimeMillis() < endTime);
+    }
+
+    /**
+     * Checks whether data is present in the Pinot target table. numElementsToCheck defines the
+     * number of elements (from the head of data) to check for existence in the pinot table.
+     *
+     * @param data               Data to expect in the Pinot table
+     * @param numElementsToCheck First n elements to check
+     * @throws AssertionFailedError        in case the assertion fails
+     * @throws PinotControllerApiException in case there aren't any rows in the Pinot table
+     */
+    private void checkForDataInPinot(List<SingleColumnTableRow> data, int numElementsToCheck) throws AssertionFailedError, PinotControllerApiException {
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + 5);
 

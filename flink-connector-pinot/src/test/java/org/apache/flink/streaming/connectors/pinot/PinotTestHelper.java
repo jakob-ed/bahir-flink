@@ -138,9 +138,9 @@ public class PinotTestHelper implements Closeable {
      * @param tableName          Target table's name
      * @param maxNumberOfEntries Max number of entries to fetch
      * @return ResultSet
-     * @throws Exception
+     * @throws PinotControllerApiException
      */
-    public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws Exception {
+    public ResultSet getTableEntries(String tableName, Integer maxNumberOfEntries) throws PinotControllerApiException {
         Connection brokerConnection = null;
         try {
             String brokerHostPort = String.format("%s:%s", this.host, this.brokerPort);
@@ -151,7 +151,7 @@ public class PinotTestHelper implements Closeable {
             ResultSetGroup pinotResultSetGroup = brokerConnection.execute(pinotClientRequest);
 
             if (pinotResultSetGroup.getResultSetCount() != 1) {
-                throw new Exception("Could not find any data in Pinot cluster.");
+                throw new PinotControllerApiException("Could not find any data in Pinot cluster.");
             }
             return pinotResultSetGroup.getResultSet(0);
         } finally {

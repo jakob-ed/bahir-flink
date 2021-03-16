@@ -124,7 +124,7 @@ public class PinotControllerHttpClient implements Closeable {
         public final StatusLine statusLine;
         public final String responseBody;
 
-        public ApiResponse(StatusLine statusLine, String responseBody) {
+        ApiResponse(StatusLine statusLine, String responseBody) {
             this.statusLine = statusLine;
             this.responseBody = responseBody;
         }
