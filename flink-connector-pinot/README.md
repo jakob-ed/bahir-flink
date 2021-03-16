@@ -16,8 +16,7 @@ See how to link with them for cluster execution [here](https://ci.apache.org/pro
 
 The sink class is called `PinotSink`.
 
-## Examples
-### Java API
+## Usage
 ```java
 StreamExecutionEnvironment env = ...
 // Checkpointing needs to be enabled when executing in STREAMING mode
@@ -57,3 +56,15 @@ PinotSink pinotSink = new PinotSink.Builder<PinotRow>(String pinotControllerHost
         .build()
 dataStream.addSink(pinotSink);
 ```
+
+## Architecture
+The Pinot sink stores elements from upstream Flink tasks in an Apache Pinot table.
+We support two execution modes
+* `RuntimeExecutionMode.BATCH`
+* `RuntimeExecutionMode.STREAMING` which requires checkpointing to be enabled.
+
+### PinotSinkWriter
+Whenever the sink receives elements from upstream tasks, they are received by an instance of the PinotSinkWriter.
+The PinotSinkWriter will create 
+
+![](docs/images/SinkWriter.png){:width="300px"}
