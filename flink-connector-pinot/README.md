@@ -78,7 +78,7 @@ Over time, the list of `PinotWriterSegment` per `PinotSinkWriter` increases up t
 On checkpoint creation `PinotSinkWriter.prepareCommit` gets called by the Flink environment.
 This triggers the creation of `PinotSinkCommittable`s where each inactive `PinotWriterSegment` creates exactly one `PinotSinkCommittable`. 
 
-<img width="500" alt="PinotSinkWriter" src="docs/images/PinotSinkWriter_prepareCommit.png.png">
+<img width="500" alt="PinotSinkWriter prepareCommit" src="docs/images/PinotSinkWriter_prepareCommit.png">
 
 In order to create a `PinotSinkCommittable`, a file containing a `PinotWriterSegment`'s elements is on the shared filesystem defined via `FileSystemAdapter`.
 The file contains a list of elements in JSON format. The serialization is done via `JSONSerializer`.
