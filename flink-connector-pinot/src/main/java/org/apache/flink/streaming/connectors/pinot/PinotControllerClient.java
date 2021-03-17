@@ -41,7 +41,7 @@ public class PinotControllerClient implements Closeable {
      * @param controllerPort Pinot controller's port
      */
     public PinotControllerClient(String controllerHost, String controllerPort) {
-        httpClient = new PinotControllerHttpClient(controllerHost, controllerPort);
+        this.httpClient = new PinotControllerHttpClient(controllerHost, controllerPort);
     }
 
     /**

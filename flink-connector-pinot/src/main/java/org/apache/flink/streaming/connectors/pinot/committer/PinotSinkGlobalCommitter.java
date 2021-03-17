@@ -341,10 +341,10 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
          * @param segmentTimeUnit     Unit of the time column
          */
         SegmentCommitter(String pinotControllerHost, String pinotControllerPort,
-                                File tempDirectory, FileSystemAdapter fsAdapter,
-                                String dataFilePath, String segmentName, Schema tableSchema,
-                                TableConfig tableConfig, String timeColumnName,
-                                TimeUnit segmentTimeUnit) {
+                         File tempDirectory, FileSystemAdapter fsAdapter,
+                         String dataFilePath, String segmentName, Schema tableSchema,
+                         TableConfig tableConfig, String timeColumnName,
+                         TimeUnit segmentTimeUnit) {
             this.pinotControllerHost = pinotControllerHost;
             this.pinotControllerPort = pinotControllerPort;
             this.tempDirectory = tempDirectory;

@@ -35,7 +35,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *   <li>Sequence id</li>
  * </ul>
  */
-public class SimpleSegmentNameGenerator extends PinotSinkSegmentNameGenerator {
+public class SimpleSegmentNameGenerator implements PinotSinkSegmentNameGenerator {
 
     private final String tableName;
     private final String segmentNamePostfix;

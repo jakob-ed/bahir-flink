@@ -25,7 +25,7 @@ import java.util.List;
  * Defines the interaction with a shared filesystem. The shared filesystem must be accessible from all
  * nodes within the cluster than run a partition of the {@link org.apache.flink.streaming.connectors.pinot.PinotSink}.
  */
-public abstract class FileSystemAdapter implements Serializable {
+public interface FileSystemAdapter extends Serializable {
 
     /**
      * Writes a list of serialized elements to the shared filesystem.
@@ -34,7 +34,7 @@ public abstract class FileSystemAdapter implements Serializable {
      * @return Path identifying the remote file
      * @throws IOException
      */
-    public abstract String writeToSharedFileSystem(List<String> elements) throws IOException;
+    String writeToSharedFileSystem(List<String> elements) throws IOException;
 
     /**
      * Reads a previously written list of serialized elements from the shared filesystem.
@@ -43,7 +43,7 @@ public abstract class FileSystemAdapter implements Serializable {
      * @return List of serialized elements read from the shared filesystem
      * @throws IOException
      */
-    public abstract List<String> readFromSharedFileSystem(String path) throws IOException;
+    List<String> readFromSharedFileSystem(String path) throws IOException;
 
     /**
      * Deletes a file from the shared filesystem
@@ -51,5 +51,5 @@ public abstract class FileSystemAdapter implements Serializable {
      * @param path Path returned by {@link #writeToSharedFileSystem}
      * @throws IOException
      */
-    public abstract void deleteFromSharedFileSystem(String path) throws IOException;
+    void deleteFromSharedFileSystem(String path) throws IOException;
 }

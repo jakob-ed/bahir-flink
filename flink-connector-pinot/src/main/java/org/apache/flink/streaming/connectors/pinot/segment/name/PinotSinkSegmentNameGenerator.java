@@ -19,7 +19,6 @@ package org.apache.flink.streaming.connectors.pinot.segment.name;
 
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
@@ -27,8 +26,5 @@ import java.io.Serializable;
  * name generator is required to be serializable. We expect users to inherit from
  * {@link PinotSinkSegmentNameGenerator} in case they want to define their custom name generator.
  */
-public abstract class PinotSinkSegmentNameGenerator implements SegmentNameGenerator, Serializable {
-
-    @Override
-    public abstract String generateSegmentName(int sequenceId, @Nullable Object minTimeValue, @Nullable Object maxTimeValue);
+public interface PinotSinkSegmentNameGenerator extends SegmentNameGenerator, Serializable {
 }

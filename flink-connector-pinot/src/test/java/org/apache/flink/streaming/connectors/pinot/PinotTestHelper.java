@@ -47,7 +47,7 @@ public class PinotTestHelper implements Closeable {
     public PinotTestHelper(String host, String controllerPort, String brokerPort) {
         this.host = host;
         this.brokerPort = brokerPort;
-        httpClient = new PinotControllerHttpClient(host, controllerPort);
+        this.httpClient = new PinotControllerHttpClient(host, controllerPort);
     }
 
     /**

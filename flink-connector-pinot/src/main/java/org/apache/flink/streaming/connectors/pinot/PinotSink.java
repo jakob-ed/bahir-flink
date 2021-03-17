@@ -27,7 +27,6 @@ import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalComm
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
-import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
@@ -304,18 +303,6 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         public Builder<IN> withFileSystemAdapter(FileSystemAdapter fsAdapter) {
             this.fsAdapter = fsAdapter;
             return this;
-        }
-
-        /**
-         * Use the local file system for sharing data files between the {@link PinotSinkWriter} and
-         * the {@link PinotSinkGlobalCommitter}.
-         * CAUTION: This requires all subTasks and the {@link PinotSinkGlobalCommitter} to run on
-         * the same node with access to the same local file system.
-         *
-         * @return Builder
-         */
-        public Builder<IN> withLocalFileSystemAdapter(String tempDirPrefix) {
-            return withFileSystemAdapter(new LocalFileSystemAdapter(tempDirPrefix));
         }
 
         /**

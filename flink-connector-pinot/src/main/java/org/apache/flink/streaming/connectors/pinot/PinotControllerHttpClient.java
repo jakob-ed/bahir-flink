@@ -79,7 +79,7 @@ public class PinotControllerHttpClient implements Closeable {
      * @return API response
      * @throws IOException
      */
-    protected ApiResponse post(String path, String body) throws IOException {
+    ApiResponse post(String path, String body) throws IOException {
         HttpPost httppost = new HttpPost(this.controllerHostPort + path);
         httppost.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
         LOG.debug("Posting string entity {} to {}", body, path);
@@ -93,7 +93,7 @@ public class PinotControllerHttpClient implements Closeable {
      * @return API response
      * @throws IOException
      */
-    protected ApiResponse get(String path) throws IOException {
+    ApiResponse get(String path) throws IOException {
         HttpGet httpget = new HttpGet(this.controllerHostPort + path);
         LOG.debug("Sending GET request to {}", path);
         return this.execute(httpget);
@@ -106,7 +106,7 @@ public class PinotControllerHttpClient implements Closeable {
      * @return API response
      * @throws IOException
      */
-    protected ApiResponse delete(String path) throws IOException {
+    ApiResponse delete(String path) throws IOException {
         HttpDelete httpdelete = new HttpDelete(this.controllerHostPort + path);
         LOG.debug("Sending DELETE request to {}", path);
         return this.execute(httpdelete);

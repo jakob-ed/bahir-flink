@@ -16,65 +16,6 @@ See how to link with them for cluster execution [here](https://ci.apache.org/pro
 
 The sink class is called `PinotSink`.
 
-## Usage
-```java
-StreamExecutionEnvironment env = ...
-// Checkpointing needs to be enabled when executing in STREAMING mode
-        env.enableCheckpointing(long interval);
-
-        DataStream<PinotRow> dataStream = ...
-        PinotSink pinotSink = new PinotSink.Builder<PinotRow>(String pinotControllerHost, String pinotControllerPort, String tableName)
-
-        // Serializes a PinotRow to JSON format
-        .withJsonSerializer(JsonSerializer<PinotRow> jsonSerializer)
-
-        // Extracts the timestamp from a PinotRow
-        .withEventTimeExtractor(EventTimeExtractor<IN> eventTimeExtractor)
-
-        // Defines the segment name generation via the predefined SimpleSegmentNameGenerator
-        // Exemplary segment name: tableName_minTimestamp_maxTimestamp_segmentNamePostfix_0
-        .withSimpleSegmentNameGenerator(String tableName, String segmentNamePostfix)
-
-        // Use a custom segment name generator if the SimpleSegmentNameGenerator does not work for your use case
-        .withSegmentNameGenerator(SegmentNameGenerator segmentNameGenerator)
-
-        // Use the local filesystem to share committables across subTasks
-        // CAUTION: Use only if all subTasks run on the same node with access to the local filesystem
-        .withLocalFileSystemAdapter()
-
-        // Use a custom filesystem adapter. 
-        // CAUTION: Make sure all nodes your Flink app runs on can access the shared filesystem via the provided FileSystemAdapter
-        .withFileSystemAdapter(FileSystemAdapter fsAdapter)
-
-        // Defines the size of the Pinot segments
-        .withMaxRowsPerSegment(int maxRowsPerSegment)
-
-        // Prefix within the local filesystem's temp directory used for storing intermediate files
-        .withTempDirectoryPrefix(String tempDirPrefix)
-        
-        // Number of threads used in the `PinotSinkGlobalCommitter` to commit a batch of segments
-        // Optional - Default is 4
-        .withNumCommitThreads(int numCommitThreads)
-
-        // Builds the PinotSink
-        .build()
-        dataStream.addSink(pinotSink);
-```
-
-## Options
-| Option                 | Description                                                                      |
-| ---------------------- | -------------------------------------------------------------------------------- | 
-| `pinotControllerHost`  | Host of the Pinot controller                                                     |
-| `pinotControllerPort`  | Port of the Pinot controller                                                     |
-| `tableName`            | Target Pinot table's name                                                        |
-| `maxRowsPerSegment`    | Maximum number of rows to be stored within a Pinot segment                       |
-| `tempDirPrefix`         | Prefix for temp directories used                                                  |
-| `jsonSerializer`       | Serializer used to convert elements to JSON                                      |
-| `eventTimeExtractor`   | Defines the way event times are extracted from received objects                   |
-| `segmentNameGenerator` | Pinot segment name generator                                                     |
-| `fsAdapter`            | Filesystem adapter used to save files for sharing files across nodes               |
-| `numCommitThreads`     | Number of threads used in the `PinotSinkGlobalCommitter` for committing segments |
-
 ## Architecture
 The Pinot sink stores elements from upstream Flink tasks in an Apache Pinot table.
 We support two execution modes
@@ -124,3 +65,58 @@ When finally committing a `PinotSinkGlobalCommittable` the following procedure i
 ## Delivery Guarantees
 Resulting from the above described architecture the `PinotSink` provides an at-least-once delivery guarantee.
 While the failure recovery mechanism ensures that duplicate segments are prevented, there might be temporary inconsistencies in the Pinot table which can result in downstream tasks receiving an element multiple times.
+
+## Options
+| Option                 | Description                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------- | 
+| `pinotControllerHost`  | Host of the Pinot controller                                                     |
+| `pinotControllerPort`  | Port of the Pinot controller                                                     |
+| `tableName`            | Target Pinot table's name                                                        |
+| `maxRowsPerSegment`    | Maximum number of rows to be stored within a Pinot segment                       |
+| `tempDirPrefix`         | Prefix for temp directories used                                                  |
+| `jsonSerializer`       | Serializer used to convert elements to JSON                                      |
+| `eventTimeExtractor`   | Defines the way event times are extracted from received objects                   |
+| `segmentNameGenerator` | Pinot segment name generator                                                     |
+| `fsAdapter`            | Filesystem adapter used to save files for sharing files across nodes               |
+| `numCommitThreads`     | Number of threads used in the `PinotSinkGlobalCommitter` for committing segments |
+
+## Usage
+```java
+StreamExecutionEnvironment env = ...
+// Checkpointing needs to be enabled when executing in STREAMING mode
+        env.enableCheckpointing(long interval);
+
+        DataStream<PinotRow> dataStream = ...
+        PinotSink pinotSink = new PinotSink.Builder<PinotRow>(String pinotControllerHost, String pinotControllerPort, String tableName)
+
+        // Serializes a PinotRow to JSON format
+        .withJsonSerializer(JsonSerializer<PinotRow> jsonSerializer)
+
+        // Extracts the timestamp from a PinotRow
+        .withEventTimeExtractor(EventTimeExtractor<IN> eventTimeExtractor)
+
+        // Defines the segment name generation via the predefined SimpleSegmentNameGenerator
+        // Exemplary segment name: tableName_minTimestamp_maxTimestamp_segmentNamePostfix_0
+        .withSimpleSegmentNameGenerator(String tableName, String segmentNamePostfix)
+
+        // Use a custom segment name generator if the SimpleSegmentNameGenerator does not work for your use case
+        .withSegmentNameGenerator(SegmentNameGenerator segmentNameGenerator)
+
+        // Use a custom filesystem adapter. 
+        // CAUTION: Make sure all nodes your Flink app runs on can access the shared filesystem via the provided FileSystemAdapter
+        .withFileSystemAdapter(FileSystemAdapter fsAdapter)
+
+        // Defines the size of the Pinot segments
+        .withMaxRowsPerSegment(int maxRowsPerSegment)
+
+        // Prefix within the local filesystem's temp directory used for storing intermediate files
+        .withTempDirectoryPrefix(String tempDirPrefix)
+        
+        // Number of threads used in the `PinotSinkGlobalCommitter` to commit a batch of segments
+        // Optional - Default is 4
+        .withNumCommitThreads(int numCommitThreads)
+
+        // Builds the PinotSink
+        .build()
+        dataStream.addSink(pinotSink);
+```

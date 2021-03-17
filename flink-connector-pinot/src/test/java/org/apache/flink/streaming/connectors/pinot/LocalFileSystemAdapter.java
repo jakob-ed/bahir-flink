@@ -15,7 +15,10 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.connectors.pinot.filesystem;
+package org.apache.flink.streaming.connectors.pinot;
+
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
+import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * The LocalFileSystemAdapter is used when sharing files via the local filesystem.
  * Keep in mind that using this FileSystemAdapter requires running the Flink app on a single node.
  */
-public class LocalFileSystemAdapter extends FileSystemAdapter {
+public class LocalFileSystemAdapter implements FileSystemAdapter {
 
     private final String tempDirPrefix;
 

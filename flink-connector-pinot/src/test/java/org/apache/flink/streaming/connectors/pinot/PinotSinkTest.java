@@ -26,7 +26,6 @@ import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApi
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
-import org.apache.flink.streaming.connectors.pinot.filesystem.LocalFileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.pinot.client.ResultSet;
