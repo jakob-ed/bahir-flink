@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.pinot.serializer;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkGlobalCommittable;
 
@@ -28,6 +29,7 @@ import java.util.List;
 /**
  * Serializer for {@link PinotSinkGlobalCommittable}
  */
+@Internal
 public class PinotSinkGlobalCommittableSerializer implements SimpleVersionedSerializer<PinotSinkGlobalCommittable> {
 
     private static final int CURRENT_VERSION = 1;

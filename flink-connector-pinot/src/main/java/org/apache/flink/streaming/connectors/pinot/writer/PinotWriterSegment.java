@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.connectors.pinot.writer;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.connectors.pinot.committer.PinotSinkCommittable;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
@@ -36,6 +37,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <IN> Type of incoming elements
  */
+@Internal
 public class PinotWriterSegment<IN> implements Serializable {
 
     private final int maxRowsPerSegment;

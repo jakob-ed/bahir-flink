@@ -18,6 +18,8 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
+import org.apache.flink.annotation.Internal;
+
 import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -26,6 +28,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * The PinotSinkCommittable is required for sharing committables with the
  * {@link PinotSinkGlobalCommitter} instance
  */
+@Internal
 public class PinotSinkCommittable implements Serializable {
     private final String dataFilePath;
     private final long minTimestamp;

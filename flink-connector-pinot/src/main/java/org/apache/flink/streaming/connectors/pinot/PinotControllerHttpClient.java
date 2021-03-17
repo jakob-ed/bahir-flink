@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
@@ -36,6 +37,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Helpers to interact with the Pinot controller via its public API.
  */
+@Internal
 public class PinotControllerHttpClient implements Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerHttpClient.class);

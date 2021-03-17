@@ -18,6 +18,8 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
+import org.apache.flink.annotation.Internal;
+
 import java.io.Serializable;
 import java.util.List;
 
@@ -26,6 +28,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Global committable references all data files that will be committed during checkpointing.
  */
+@Internal
 public class PinotSinkGlobalCommittable implements Serializable {
     private final List<String> dataFilePaths;
     private final long minTimestamp;

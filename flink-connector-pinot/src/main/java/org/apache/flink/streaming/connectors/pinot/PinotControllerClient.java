@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.pinot;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
@@ -31,6 +32,7 @@ import java.io.IOException;
 /**
  * Helpers to interact with the Pinot controller via its public API.
  */
+@Internal
 public class PinotControllerClient implements Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerClient.class);

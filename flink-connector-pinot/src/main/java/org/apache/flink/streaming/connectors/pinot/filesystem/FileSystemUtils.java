@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.connectors.pinot.filesystem;
 
+import org.apache.flink.annotation.Internal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +28,7 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
 
+@Internal
 public class FileSystemUtils {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemUtils.class);

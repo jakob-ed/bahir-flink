@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.connectors.pinot.committer;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink.GlobalCommitter;
 import org.apache.flink.streaming.connectors.pinot.PinotControllerClient;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
@@ -54,6 +55,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * overcome the performance limitations resulting from using a {@link GlobalCommitter} always
  * running at a parallelism of 1.
  */
+@Internal
 public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommittable, PinotSinkGlobalCommittable> {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkGlobalCommitter.class);
