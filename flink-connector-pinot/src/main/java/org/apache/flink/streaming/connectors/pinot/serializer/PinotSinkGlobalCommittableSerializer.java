@@ -57,12 +57,12 @@ public class PinotSinkGlobalCommittableSerializer implements SimpleVersionedSeri
     }
 
     @Override
-    public PinotSinkGlobalCommittable deserialize(int version, byte[] serialized) throws IllegalArgumentException, IOException {
+    public PinotSinkGlobalCommittable deserialize(int version, byte[] serialized) throws IllegalStateException, IOException {
         switch (version) {
             case 1:
                 return deserializeV1(serialized);
             default:
-                throw new IllegalArgumentException("Unrecognized version or corrupt state: " + version);
+                throw new IllegalStateException("Unrecognized version or corrupt state: " + version);
         }
     }
 
