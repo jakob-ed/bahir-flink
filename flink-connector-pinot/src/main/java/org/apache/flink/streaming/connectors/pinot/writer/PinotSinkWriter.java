@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,7 +42,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @param <IN> Type of incoming elements
  */
 @Internal
-public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, Void> {
+public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable, PinotSinkWriterState> {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotSinkWriter.class);
 
@@ -136,14 +137,34 @@ public class PinotSinkWriter<IN> implements SinkWriter<IN, PinotSinkCommittable,
     }
 
     /**
-     * As we do not need to save any information in snapshots,
-     * this method always returns an empty ArrayList.
+     * Snapshots the latest PinotWriterSegment (if existent), so that the contained (and not yet
+     * committed) elements can be recovered later on in case of a failure.
      *
-     * @return always an empty ArrayList
+     * @return A list containing at most one PinotSinkWriterState
      */
     @Override
-    public List<Void> snapshotState() {
-        return new ArrayList<>();
+    public List<PinotSinkWriterState> snapshotState() {
+        final PinotWriterSegment<IN> latestSegment = Iterables.getLast(activeSegments, null);
+        if (latestSegment == null || !latestSegment.acceptsElements()) {
+            return new ArrayList<>();
+        }
+
+        return Collections.singletonList(latestSegment.snapshotState());
+    }
+
+    /**
+     * Initializes the writer according to a previously taken snapshot.
+     *
+     * @param state PinotSinkWriterState extracted from snapshot
+     */
+    public void initializeState(PinotSinkWriterState state) {
+        if (activeSegments.size() != 0) {
+            throw new IllegalStateException("Please call the initialization before creating the first PinotWriterSegment.");
+        }
+        // Create a new PinotWriterSegment and recover its state from the given PinotSinkWriterState
+        final PinotWriterSegment<IN> inProgressSegment = new PinotWriterSegment<>(maxRowsPerSegment, jsonSerializer, fsAdapter);
+        inProgressSegment.initializeState(state.getSerializedElements(), state.getMinTimestamp(), state.getMaxTimestamp());
+        activeSegments.add(inProgressSegment);
     }
 
     /**

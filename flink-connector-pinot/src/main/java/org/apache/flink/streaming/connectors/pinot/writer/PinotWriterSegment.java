@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -46,7 +45,7 @@ public class PinotWriterSegment<IN> implements Serializable {
 
     private boolean acceptsElements = true;
 
-    private final List<IN> elements;
+    private final List<String> serializedElements;
     private String dataPathOnSharedFS;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
@@ -61,7 +60,7 @@ public class PinotWriterSegment<IN> implements Serializable {
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.jsonSerializer = checkNotNull(jsonSerializer);
         this.fsAdapter = checkNotNull(fsAdapter);
-        this.elements = new ArrayList<>();
+        this.serializedElements = new ArrayList<>();
     }
 
     /**
@@ -76,15 +75,16 @@ public class PinotWriterSegment<IN> implements Serializable {
         if (!acceptsElements()) {
             throw new IllegalStateException("This PinotSegmentWriter does not accept any elements anymore.");
         }
-        elements.add(element);
+        // Store serialized element in serializedElements
+        serializedElements.add(jsonSerializer.toJson(element));
         minTimestamp = Long.min(minTimestamp, timestamp);
         maxTimestamp = Long.max(maxTimestamp, timestamp);
 
         // Writes elements to local filesystem once the maximum number of items is reached
-        if (elements.size() == maxRowsPerSegment) {
+        if (serializedElements.size() == maxRowsPerSegment) {
             acceptsElements = false;
             dataPathOnSharedFS = writeToSharedFilesystem();
-            elements.clear();
+            serializedElements.clear();
         }
     }
 
@@ -103,17 +103,13 @@ public class PinotWriterSegment<IN> implements Serializable {
     }
 
     /**
-     * Takes elements from {@link #elements} and writes them to the shared filesystem in JSON format.
+     * Takes elements from {@link #serializedElements} and writes them to the shared filesystem.
      *
      * @return Path pointing to just written data on shared filesystem
      * @throws IOException
      */
     private String writeToSharedFilesystem() throws IOException {
-        // Convert row items to JSON format
-        List<String> serialized = elements.stream()
-                .map(jsonSerializer::toJson)
-                .collect(Collectors.toList());
-        return fsAdapter.writeToSharedFileSystem(serialized);
+        return fsAdapter.writeToSharedFileSystem(serializedElements);
     }
 
     /**
@@ -123,5 +119,35 @@ public class PinotWriterSegment<IN> implements Serializable {
      */
     public boolean acceptsElements() {
         return acceptsElements;
+    }
+
+    /**
+     * Recovers a previously written state.
+     *
+     * @param _serializedElements List containing received, but not yet committed list of serialized elements.
+     * @param _minTimestamp       Minimum event timestamp of all elements
+     * @param _maxTimestamp       Maximum event timestamp of all elements
+     */
+    public void initializeState(List<String> _serializedElements, long _minTimestamp, long _maxTimestamp) {
+        if (!serializedElements.isEmpty()) {
+            throw new IllegalStateException("Cannot initialize a PinotWriterSegment that has already received elements.");
+        }
+
+        serializedElements.addAll(_serializedElements);
+        minTimestamp = _minTimestamp;
+        maxTimestamp = _maxTimestamp;
+    }
+
+    /**
+     * Snapshots the current state of an active {@link PinotWriterSegment}.
+     *
+     * @return List of elements currently stored within the {@link PinotWriterSegment}
+     */
+    public PinotSinkWriterState snapshotState() {
+        if (!acceptsElements()) {
+            throw new IllegalStateException("Snapshots can only be created of in-progress segments.");
+        }
+
+        return new PinotSinkWriterState(serializedElements, minTimestamp, maxTimestamp);
     }
 }

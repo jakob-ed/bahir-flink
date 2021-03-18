@@ -96,18 +96,18 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
         this.fsAdapter = checkNotNull(fsAdapter);
         this.timeColumnName = checkNotNull(timeColumnName);
         this.segmentTimeUnit = checkNotNull(segmentTimeUnit);
-        pinotControllerClient = new PinotControllerClient(pinotControllerHost, pinotControllerPort);
+        this.pinotControllerClient = new PinotControllerClient(pinotControllerHost, pinotControllerPort);
 
         // Create directory that temporary files will be stored in
-        tempDirectory = Files.createTempDirectory(tempDirPrefix).toFile();
+        this.tempDirectory = Files.createTempDirectory(tempDirPrefix).toFile();
 
         // Retrieve the Pinot table schema and the Pinot table config from the Pinot controller
-        tableSchema = pinotControllerClient.getSchema(tableName);
-        tableConfig = pinotControllerClient.getTableConfig(tableName);
+        this.tableSchema = pinotControllerClient.getSchema(tableName);
+        this.tableConfig = pinotControllerClient.getTableConfig(tableName);
 
         // We use a thread pool in order to parallelize the segment creation and segment upload
         checkArgument(numCommitThreads > 0);
-        pool = Executors.newFixedThreadPool(numCommitThreads);
+        this.pool = Executors.newFixedThreadPool(numCommitThreads);
     }
 
     /**
@@ -436,9 +436,10 @@ public class PinotSinkGlobalCommitter implements GlobalCommitter<PinotSinkCommit
                             segment.getSegmentSizeBytes());
                     segment.destroy();
                 }
-            } catch (Exception e) {
-                // SegmentIndexCreationDriverImpl throws generic Exceptions during init and build
-                // ImmutableSegmentLoader throws generic Exception during load
+            }
+            // SegmentIndexCreationDriverImpl throws generic Exceptions during init and build
+            // ImmutableSegmentLoader throws generic Exception during load
+            catch (Exception e) {
                 String message = String.format("Error while generating segment from file %s", dataFile.getAbsolutePath());
                 LOG.error(message, e);
                 throw new RuntimeException(message);

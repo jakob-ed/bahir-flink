@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @param <IN> Type of incoming elements
  */
-public abstract class EventTimeExtractor<IN> implements Serializable {
+public interface EventTimeExtractor<IN> extends Serializable {
 
     /**
      * Extracts event time from incoming elements.

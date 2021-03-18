@@ -51,8 +51,8 @@ public class PinotControllerHttpClient implements Closeable {
     public PinotControllerHttpClient(String controllerHost, String controllerPort) {
         checkNotNull(controllerHost);
         checkNotNull(controllerPort);
-        controllerHostPort = String.format("http://%s:%s", controllerHost, controllerPort);
-        httpClient = HttpClients.createDefault();
+        this.controllerHostPort = String.format("http://%s:%s", controllerHost, controllerPort);
+        this.httpClient = HttpClients.createDefault();
     }
 
     /**

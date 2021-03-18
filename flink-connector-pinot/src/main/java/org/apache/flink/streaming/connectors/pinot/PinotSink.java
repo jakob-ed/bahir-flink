@@ -31,7 +31,9 @@ import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegment
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkCommittableSerializer;
 import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkGlobalCommittableSerializer;
+import org.apache.flink.streaming.connectors.pinot.serializer.PinotSinkWriterStateSerializer;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter;
+import org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriterState;
 import org.apache.flink.streaming.connectors.pinot.writer.PinotWriterSegment;
 import org.apache.pinot.core.segment.creator.SegmentIndexCreationDriver;
 import org.apache.pinot.core.segment.name.SegmentNameGenerator;
@@ -70,14 +72,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * temporary directory and contains serialized elements. We use the {@link JsonSerializer} to
  * serialize elements to JSON.
  *
- * <p>On checkpointing all inactive {@link PinotWriterSegment} are transformed into committables. As
- * the data files need to be shared across nodes, the sink requires access to a shared filesystem. We
- * use the {@link FileSystemAdapter} for that purpose. A {@link FileSystemAdapter} is capable of
- * copying a file from the local to the shared filesystem and vice-versa.
- * A {@link PinotSinkCommittable} contains a reference to a data file on the shared file system as
- * well as the minimum and maximum timestamp contained in the data file. A timestamp - usually the
- * event time - is extracted from each received element via {@link EventTimeExtractor}. The
- * timestamps are later on required to follow the guideline for naming Pinot segments.
+ * <p>On checkpointing all not in-progress {@link PinotWriterSegment}s are transformed into
+ * committables. As the data files need to be shared across nodes, the sink requires access to a
+ * shared filesystem. We use the {@link FileSystemAdapter} for that purpose.
+ * A {@link FileSystemAdapter} is capable of copying a file from the local to the shared filesystem
+ * and vice-versa. A {@link PinotSinkCommittable} contains a reference to a data file on the shared
+ * filesystem as well as the minimum and maximum timestamp contained in the data file. A timestamp -
+ * usually the event time - is extracted from each received element via {@link EventTimeExtractor}.
+ * The timestamps are later on required to follow the guideline for naming Pinot segments.
+ * An eventually existent in-progress {@link PinotWriterSegment}'s state is saved in the snapshot
+ * taken when checkpointing. This ensures that the at-most-once delivery guarantee can be fulfilled
+ * when recovering from failures.
  *
  * <p>We use the {@link PinotSinkGlobalCommitter} to collect all created
  * {@link PinotSinkCommittable}s, create segments from the referenced data files and finally push them
@@ -109,7 +114,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <IN> Type of incoming elements
  */
-public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, PinotSinkGlobalCommittable> {
+public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotSinkWriterState, PinotSinkGlobalCommittable> {
 
     private final String pinotControllerHost;
     private final String pinotControllerPort;
@@ -158,14 +163,21 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * Creates a Pinot sink writer.
      *
      * @param context InitContext
-     * @param states  Empty list as the PinotSinkWriter does not accept states.
+     * @param states  State extracted from snapshot. This list must not have a size larger than 1
      */
     @Override
-    public PinotSinkWriter<IN> createWriter(InitContext context, List<Void> states) {
-        return new PinotSinkWriter<>(
+    public PinotSinkWriter<IN> createWriter(InitContext context, List<PinotSinkWriterState> states) {
+        PinotSinkWriter<IN> writer = new PinotSinkWriter<>(
                 context.getSubtaskId(), maxRowsPerSegment, eventTimeExtractor,
                 jsonSerializer, fsAdapter
         );
+
+        if (states.size() == 1) {
+            writer.initializeState(states.get(0));
+        } else if (states.size() > 1) {
+            throw new IllegalStateException("Did not expected more than one element in states.");
+        }
+        return writer;
     }
 
     /**
@@ -214,8 +226,8 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @return Empty Optional
      */
     @Override
-    public Optional<SimpleVersionedSerializer<Void>> getWriterStateSerializer() {
-        return Optional.empty();
+    public Optional<SimpleVersionedSerializer<PinotSinkWriterState>> getWriterStateSerializer() {
+        return Optional.of(new PinotSinkWriterStateSerializer());
     }
 
     /**
@@ -224,6 +236,9 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
      * @param <IN> Type of incoming elements
      */
     public static class Builder<IN> {
+
+        static final int DEFAULT_COMMIT_THREADS = 4;
+
         String pinotControllerHost;
         String pinotControllerPort;
         String tableName;
@@ -233,7 +248,7 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, Void, Pinot
         EventTimeExtractor<IN> eventTimeExtractor;
         SegmentNameGenerator segmentNameGenerator;
         FileSystemAdapter fsAdapter;
-        int numCommitThreads = 4;
+        int numCommitThreads = DEFAULT_COMMIT_THREADS;
 
         /**
          * Defines the basic connection parameters.

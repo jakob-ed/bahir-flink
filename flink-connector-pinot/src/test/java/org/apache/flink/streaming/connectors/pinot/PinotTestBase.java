@@ -20,8 +20,6 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
@@ -41,7 +39,6 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Base class for PinotSink e2e tests
@@ -134,7 +131,7 @@ public class PinotTestBase extends TestLogger {
      *
      * @return Pinot broker port
      */
-    protected String getPinotBrokerPort() {
+    private String getPinotBrokerPort() {
         return this.pinot.getMappedPort(PINOT_INTERNAL_BROKER_PORT).toString();
     }
 
@@ -168,29 +165,6 @@ public class PinotTestBase extends TestLogger {
 
         public void setTimestamp(Long timestamp) {
             this._timestamp = timestamp;
-        }
-    }
-
-
-    /**
-     * EventTimeExtractor for {@link SingleColumnTableRow} used in e2e tests.
-     * Extracts the timestamp column from {@link SingleColumnTableRow}.
-     */
-    protected static class SingleColumnTableRowEventTimeExtractor extends EventTimeExtractor<SingleColumnTableRow> {
-
-        @Override
-        public long getEventTime(SingleColumnTableRow element, SinkWriter.Context context) {
-            return element.getTimestamp();
-        }
-
-        @Override
-        public String getTimeColumn() {
-            return "timestamp";
-        }
-
-        @Override
-        public TimeUnit getSegmentTimeUnit() {
-            return TimeUnit.MILLISECONDS;
         }
     }
 

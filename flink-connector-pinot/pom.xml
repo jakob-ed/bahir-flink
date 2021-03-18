@@ -71,19 +71,6 @@ under the License.
             <version>4.5.13</version>
         </dependency>
 
-        <!-- This is used to run the local Pinot -->
-        <dependency>
-            <groupId>com.github.docker-java</groupId>
-            <artifactId>docker-java</artifactId>
-            <version>3.2.7</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.github.docker-java</groupId>
-            <artifactId>docker-java-transport-httpclient5</artifactId>
-            <version>3.2.7</version>
-            <scope>test</scope>
-        </dependency>
         <!-- This is used to interact with Pinot Broker -->
         <dependency>
             <groupId>org.apache.pinot</groupId>

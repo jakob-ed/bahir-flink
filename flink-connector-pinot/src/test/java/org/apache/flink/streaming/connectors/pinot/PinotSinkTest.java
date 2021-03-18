@@ -19,7 +19,12 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestOptions;
+import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.runtime.minicluster.MiniCluster;
+import org.apache.flink.runtime.minicluster.MiniClusterConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
@@ -34,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -57,9 +63,9 @@ public class PinotSinkTest extends PinotTestBase {
         this.setupDataStream(env, data);
 
         // Run
-        env.execute();
+        executeOnMiniCluster(env.getStreamGraph().getJobGraph());
 
-        checkForDataInPinotWithRetry(data, data.size(), 20);
+        checkForDataInPinotWithRetry(data, 20);
     }
 
     /**
@@ -75,16 +81,16 @@ public class PinotSinkTest extends PinotTestBase {
         env.setParallelism(2);
         env.enableCheckpointing(50);
 
-        List<SingleColumnTableRow> data = getTestData(1000);
+        List<SingleColumnTableRow> data = getTestData(12);
         this.setupDataStream(env, data);
 
         // Run
-        env.execute();
+        executeOnMiniCluster(env.getStreamGraph().getJobGraph());
 
         // We only expect the first 100 elements to be already committed to Pinot.
         // The remaining would follow once we increase the input data size.
         // The stream executions stops once the last input tuple was sent to the sink.
-        checkForDataInPinotWithRetry(data, 100, 20);
+        checkForDataInPinotWithRetry(data, 20);
     }
 
     /**
@@ -97,6 +103,28 @@ public class PinotSinkTest extends PinotTestBase {
                 .mapToObj(num -> "ColValue" + num)
                 .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Executes a given JobGraph on a MiniCluster.
+     *
+     * @param jobGraph JobGraph to execute
+     * @throws Exception
+     */
+    private void executeOnMiniCluster(JobGraph jobGraph) throws Exception {
+        final Configuration config = new Configuration();
+        config.setString(RestOptions.BIND_PORT, "18081-19000");
+        final MiniClusterConfiguration cfg =
+                new MiniClusterConfiguration.Builder()
+                        .setNumTaskManagers(1)
+                        .setNumSlotsPerTaskManager(4)
+                        .setConfiguration(config)
+                        .build();
+
+        try (MiniCluster miniCluster = new MiniCluster(cfg)) {
+            miniCluster.start();
+            miniCluster.executeJobBlocking(jobGraph);
+        }
     }
 
     /**
@@ -138,17 +166,16 @@ public class PinotSinkTest extends PinotTestBase {
      * using linear retry backoff delay.
      *
      * @param data                  Data to expect in the Pinot table
-     * @param numElementsToCheck    First n elements to check
      * @param retryTimeoutInSeconds Maximum duration in seconds to wait for the data to arrive
      * @throws InterruptedException
      */
-    private void checkForDataInPinotWithRetry(List<SingleColumnTableRow> data, int numElementsToCheck, int retryTimeoutInSeconds) throws InterruptedException {
+    private void checkForDataInPinotWithRetry(List<SingleColumnTableRow> data, int retryTimeoutInSeconds) throws InterruptedException {
         long endTime = System.currentTimeMillis() + 1000L * retryTimeoutInSeconds;
         // Use max 10 retries with linear retry backoff delay
         long retryDelay = 1000L / 10 * retryTimeoutInSeconds;
         do {
             try {
-                checkForDataInPinot(data, numElementsToCheck);
+                checkForDataInPinot(data);
                 // In case of no error, we can skip further retries
                 return;
             } catch (AssertionFailedError | PinotControllerApiException e) {
@@ -162,24 +189,13 @@ public class PinotSinkTest extends PinotTestBase {
      * Checks whether data is present in the Pinot target table. numElementsToCheck defines the
      * number of elements (from the head of data) to check for existence in the pinot table.
      *
-     * @param data               Data to expect in the Pinot table
-     * @param numElementsToCheck First n elements to check
+     * @param data Data to expect in the Pinot table
      * @throws AssertionFailedError        in case the assertion fails
      * @throws PinotControllerApiException in case there aren't any rows in the Pinot table
      */
-    private void checkForDataInPinot(List<SingleColumnTableRow> data, int numElementsToCheck) throws AssertionFailedError, PinotControllerApiException {
+    private void checkForDataInPinot(List<SingleColumnTableRow> data) throws AssertionFailedError, PinotControllerApiException {
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + 5);
-
-        if (numElementsToCheck == data.size()) {
-            // Check for exact number
-            Assertions.assertEquals(numElementsToCheck, resultSet.getRowCount(), "Wrong number of elements");
-        } else if (numElementsToCheck < data.size()) {
-            // Check if at least numElementsToCheck elements are present
-            Assertions.assertTrue(resultSet.getRowCount() >= numElementsToCheck, "To few elements");
-        } else {
-            throw new IllegalArgumentException("numElementsToCheck must not be larger than size of input data");
-        }
 
         // Check output strings
         List<String> output = IntStream.range(0, resultSet.getRowCount())
@@ -189,6 +205,28 @@ public class PinotSinkTest extends PinotTestBase {
         List<SingleColumnTableRow> dataToCheck = data.stream().limit(100).collect(Collectors.toList());
         for (SingleColumnTableRow test : dataToCheck) {
             Assertions.assertTrue(output.contains(test.getCol1()), "Missing " + test.getCol1());
+        }
+    }
+
+    /**
+     * EventTimeExtractor for {@link SingleColumnTableRow} used in e2e tests.
+     * Extracts the timestamp column from {@link SingleColumnTableRow}.
+     */
+    private static class SingleColumnTableRowEventTimeExtractor implements EventTimeExtractor<SingleColumnTableRow> {
+
+        @Override
+        public long getEventTime(SingleColumnTableRow element, SinkWriter.Context context) {
+            return element.getTimestamp();
+        }
+
+        @Override
+        public String getTimeColumn() {
+            return "timestamp";
+        }
+
+        @Override
+        public TimeUnit getSegmentTimeUnit() {
+            return TimeUnit.MILLISECONDS;
         }
     }
 }
