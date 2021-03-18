@@ -37,15 +37,15 @@ public interface EventTimeExtractor<IN> extends Serializable {
      * @param context Context of SinkWriter
      * @return timestamp
      */
-    public abstract long getEventTime(IN element, SinkWriter.Context context);
+    long getEventTime(IN element, SinkWriter.Context context);
 
     /**
      * @return Name of column in Pinot target table that contains the timestamp.
      */
-    public abstract String getTimeColumn();
+    String getTimeColumn();
 
     /**
      * @return Unit of the time column in the Pinot target table.
      */
-    public abstract TimeUnit getSegmentTimeUnit();
+    TimeUnit getSegmentTimeUnit();
 }
