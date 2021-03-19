@@ -57,10 +57,10 @@ import java.util.stream.IntStream;
  */
 public class PinotSinkTest extends PinotTestBase {
 
-    private final static int MAX_ROWS_PER_SEGMENT = 5;
-    private final static long STREAMING_CHECKPOINTING_INTERVAL = 50;
-    private final static int STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS = 5;
-    private final static AtomicBoolean hasFailedOnce = new AtomicBoolean(false);
+    private static final int MAX_ROWS_PER_SEGMENT = 5;
+    private static final long STREAMING_CHECKPOINTING_INTERVAL = 50;
+    private static final int STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS = 5;
+    private static final AtomicBoolean hasFailedOnce = new AtomicBoolean(false);
 
     @BeforeEach
     public void setUp() throws IOException {
