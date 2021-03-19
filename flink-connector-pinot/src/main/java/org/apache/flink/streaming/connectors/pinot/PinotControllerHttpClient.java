@@ -41,8 +41,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class PinotControllerHttpClient implements Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PinotControllerHttpClient.class);
-    protected final String controllerHostPort;
-    protected final CloseableHttpClient httpClient;
+    private final String controllerHostPort;
+    private final CloseableHttpClient httpClient;
 
     /**
      * @param controllerHost Pinot controller's host

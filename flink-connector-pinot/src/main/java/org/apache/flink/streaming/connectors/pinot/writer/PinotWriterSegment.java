@@ -55,7 +55,7 @@ public class PinotWriterSegment<IN> implements Serializable {
      * @param jsonSerializer    Serializer used to convert elements to JSON
      * @param fsAdapter         Filesystem adapter used to save files for sharing files across nodes
      */
-    protected PinotWriterSegment(int maxRowsPerSegment, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
+    PinotWriterSegment(int maxRowsPerSegment, JsonSerializer<IN> jsonSerializer, FileSystemAdapter fsAdapter) {
         checkArgument(maxRowsPerSegment > 0L);
         this.maxRowsPerSegment = maxRowsPerSegment;
         this.jsonSerializer = checkNotNull(jsonSerializer);

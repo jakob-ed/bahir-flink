@@ -20,6 +20,10 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestOptions;
+import org.apache.flink.runtime.minicluster.MiniCluster;
+import org.apache.flink.runtime.minicluster.MiniClusterConfiguration;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
@@ -27,7 +31,10 @@ import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
+import org.junit.ClassRule;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +69,7 @@ public class PinotTestBase extends TestLogger {
      * internal components. This is identified through a log statement.
      */
     @Container
-    public GenericContainer<?> pinot = new GenericContainer<>(DockerImageName.parse(DOCKER_IMAGE_NAME))
+    public static GenericContainer<?> pinot = new GenericContainer<>(DockerImageName.parse(DOCKER_IMAGE_NAME))
             .withCommand("QuickStart", "-type", "batch")
             .withExposedPorts(PINOT_INTERNAL_BROKER_PORT, PINOT_INTERNAL_CONTROLLER_PORT)
             .waitingFor(
@@ -85,6 +92,35 @@ public class PinotTestBase extends TestLogger {
                             .withStartupTimeout(Duration.ofSeconds(180))
             );
 
+    @ClassRule
+    public static final MiniCluster MINI_CLUSTER = new MiniCluster(
+            new MiniClusterConfiguration.Builder()
+                    .setConfiguration(getConfig())
+                    .setNumTaskManagers(1)
+                    .setNumSlotsPerTaskManager(4)
+                    .build());
+
+    /**
+     * Get configuration needed to instantiate the MiniCluster.
+     *
+     * @return Configuration
+     */
+    private static Configuration getConfig() {
+        final Configuration config = new Configuration();
+        config.setString(RestOptions.BIND_PORT, "18081-19000");
+        return config;
+    }
+
+    /**
+     * Starts the Flink MiniCluster.
+     *
+     * @throws Exception
+     */
+    @BeforeAll
+    public static void startMiniCluster() throws Exception {
+        MINI_CLUSTER.start();
+    }
+
     /**
      * Creates a new instance of the {@link PinotTestHelper} using the testcontainer port mappings
      * and creates the test table.
@@ -105,6 +141,16 @@ public class PinotTestBase extends TestLogger {
     @AfterEach
     public void tearDown() throws Exception {
         pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
+    }
+
+    /**
+     * Tears down the Flink MiniCluster.
+     *
+     * @throws Exception
+     */
+    @AfterAll
+    public static void tearDownMiniCluster() throws Exception {
+        MINI_CLUSTER.close();
     }
 
     /**

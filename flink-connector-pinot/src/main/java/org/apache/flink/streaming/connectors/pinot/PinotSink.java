@@ -139,11 +139,11 @@ public class PinotSink<IN> implements Sink<IN, PinotSinkCommittable, PinotSinkWr
      * @param fsAdapter            Filesystem adapter used to save files for sharing files across nodes
      * @param numCommitThreads     Number of threads used in the {@link PinotSinkGlobalCommitter} for committing segments
      */
-    public PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName,
-                     int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer,
-                     EventTimeExtractor<IN> eventTimeExtractor,
-                     SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter,
-                     int numCommitThreads) {
+    private PinotSink(String pinotControllerHost, String pinotControllerPort, String tableName,
+                      int maxRowsPerSegment, String tempDirPrefix, JsonSerializer<IN> jsonSerializer,
+                      EventTimeExtractor<IN> eventTimeExtractor,
+                      SegmentNameGenerator segmentNameGenerator, FileSystemAdapter fsAdapter,
+                      int numCommitThreads) {
         this.pinotControllerHost = checkNotNull(pinotControllerHost);
         this.pinotControllerPort = checkNotNull(pinotControllerPort);
         this.tableName = checkNotNull(tableName);

@@ -19,27 +19,36 @@
 package org.apache.flink.streaming.connectors.pinot;
 
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.connector.sink.SinkWriter;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.RestOptions;
-import org.apache.flink.runtime.jobgraph.JobGraph;
-import org.apache.flink.runtime.minicluster.MiniCluster;
-import org.apache.flink.runtime.minicluster.MiniClusterConfiguration;
+import org.apache.flink.runtime.state.FunctionInitializationContext;
+import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.connectors.pinot.exceptions.PinotControllerApiException;
 import org.apache.flink.streaming.connectors.pinot.external.EventTimeExtractor;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
+import org.apache.flink.util.Preconditions;
 import org.apache.pinot.client.ResultSet;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -47,6 +56,18 @@ import java.util.stream.IntStream;
  * E2e tests for Pinot Sink using BATCH and STREAMING execution mode
  */
 public class PinotSinkTest extends PinotTestBase {
+
+    private final static int MAX_ROWS_PER_SEGMENT = 5;
+    private final static long STREAMING_CHECKPOINTING_INTERVAL = 50;
+    private final static int STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS = 5;
+    private final static AtomicBoolean hasFailedOnce = new AtomicBoolean(false);
+
+    @BeforeEach
+    public void setUp() throws IOException {
+        super.setUp();
+        // Reset hasFailedOnce flag used during failure recovery testing before each test.
+        hasFailedOnce.set(false);
+    }
 
     /**
      * Tests the BATCH execution of the {@link PinotSink}.
@@ -57,15 +78,43 @@ public class PinotSinkTest extends PinotTestBase {
     public void testBatchSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+        env.setRestartStrategy(RestartStrategies.noRestart());
         env.setParallelism(2);
 
-        List<SingleColumnTableRow> data = getTestData(12);
-        this.setupDataStream(env, data);
+        List<String> rawData = getRawTestData(12);
+        DataStream<SingleColumnTableRow> dataStream = setupBatchDataSource(env, rawData);
+        setupSink(dataStream);
 
         // Run
-        executeOnMiniCluster(env.getStreamGraph().getJobGraph());
+        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
 
-        checkForDataInPinotWithRetry(data, 20);
+        // Check for data in Pinot
+        checkForDataInPinotWithRetry(rawData, 20);
+    }
+
+    /**
+     * Tests failure recovery of the {@link PinotSink} using BATCH execution mode.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testFailureRecoveryInBatchingSink() throws Exception {
+        final Configuration conf = new Configuration();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+        env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 10));
+        env.setParallelism(2);
+
+        List<String> rawData = getRawTestData(12);
+        DataStream<SingleColumnTableRow> dataStream = setupBatchDataSource(env, rawData);
+        dataStream = setupFailingMapper(dataStream, 8);
+        setupSink(dataStream);
+
+        // Run
+        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+
+        // Check for data in Pinot
+        checkForDataInPinotWithRetry(rawData, 20);
     }
 
     /**
@@ -78,19 +127,46 @@ public class PinotSinkTest extends PinotTestBase {
         final Configuration conf = new Configuration();
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.setRestartStrategy(RestartStrategies.noRestart());
         env.setParallelism(2);
-        env.enableCheckpointing(50);
+        env.enableCheckpointing(STREAMING_CHECKPOINTING_INTERVAL);
 
-        List<SingleColumnTableRow> data = getTestData(12);
-        this.setupDataStream(env, data);
+        List<String> rawData = getRawTestData(20);
+        DataStream<SingleColumnTableRow> dataStream = setupStreamingDataSource(env, rawData);
+        setupSink(dataStream);
 
         // Run
-        executeOnMiniCluster(env.getStreamGraph().getJobGraph());
+        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
 
-        // We only expect the first 100 elements to be already committed to Pinot.
-        // The remaining would follow once we increase the input data size.
-        // The stream executions stops once the last input tuple was sent to the sink.
-        checkForDataInPinotWithRetry(data, 20);
+        // Check for data in Pinot
+        checkForDataInPinotWithRetry(rawData, 20);
+    }
+
+    /**
+     * Tests failure recovery of the {@link PinotSink} using STREAMING execution mode.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testFailureRecoveryInStreamingSink() throws Exception {
+        final Configuration conf = new Configuration();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
+        env.setParallelism(2);
+        env.enableCheckpointing(STREAMING_CHECKPOINTING_INTERVAL);
+
+        List<String> rawData = getRawTestData(20);
+        DataStream<SingleColumnTableRow> dataStream = setupStreamingDataSource(env, rawData);
+        // With a segment size of MAX_ROWS_PER_SEGMENT = 5 elements and a parallelism of 2,
+        // the failure will be raised once the first 2 segments were committed to Pinot.
+        dataStream = setupFailingMapper(dataStream, 12);
+        setupSink(dataStream);
+
+        // Run
+        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+
+        // Check for data in Pinot
+        checkForDataInPinotWithRetry(rawData, 20);
     }
 
     /**
@@ -98,47 +174,67 @@ public class PinotSinkTest extends PinotTestBase {
      *
      * @return List of SingleColumnTableRow
      */
-    private List<SingleColumnTableRow> getTestData(int numItems) {
+    private List<String> getRawTestData(int numItems) {
         return IntStream.range(1, numItems + 1)
                 .mapToObj(num -> "ColValue" + num)
-                .map(col1 -> new SingleColumnTableRow(col1, System.currentTimeMillis()))
                 .collect(Collectors.toList());
     }
 
     /**
-     * Executes a given JobGraph on a MiniCluster.
+     * Setup the data source for STREAMING tests.
      *
-     * @param jobGraph JobGraph to execute
-     * @throws Exception
+     * @param env           Stream execution environment
+     * @param rawDataValues Data values to send
+     * @return resulting data stream
      */
-    private void executeOnMiniCluster(JobGraph jobGraph) throws Exception {
-        final Configuration config = new Configuration();
-        config.setString(RestOptions.BIND_PORT, "18081-19000");
-        final MiniClusterConfiguration cfg =
-                new MiniClusterConfiguration.Builder()
-                        .setNumTaskManagers(1)
-                        .setNumSlotsPerTaskManager(4)
-                        .setConfiguration(config)
-                        .build();
+    private DataStream<SingleColumnTableRow> setupStreamingDataSource(StreamExecutionEnvironment env, List<String> rawDataValues) {
+        SimpleStreamingSource source = new SimpleStreamingSource(rawDataValues, 10);
+        return env.addSource(source)
+                .name("Test input");
+    }
 
-        try (MiniCluster miniCluster = new MiniCluster(cfg)) {
-            miniCluster.start();
-            miniCluster.executeJobBlocking(jobGraph);
-        }
+    /**
+     * Setup the data source for BATCH tests.
+     *
+     * @param env           Stream execution environment
+     * @param rawDataValues Data values to send
+     * @return resulting data stream
+     */
+    private DataStream<SingleColumnTableRow> setupBatchDataSource(StreamExecutionEnvironment env, List<String> rawDataValues) {
+        return env.fromCollection(rawDataValues)
+                .map(value -> new SingleColumnTableRow(value, System.currentTimeMillis()))
+                .name("Test input");
+    }
+
+    /**
+     * Setup a mapper that fails when processing the nth element with n = failOnceAtNthElement.
+     *
+     * @param dataStream           Input data stream
+     * @param failOnceAtNthElement Number of elements to process before raising the exception
+     * @return resulting data stream
+     */
+    private DataStream<SingleColumnTableRow> setupFailingMapper(DataStream<SingleColumnTableRow> dataStream, int failOnceAtNthElement) {
+        AtomicInteger messageCounter = new AtomicInteger(0);
+
+        return dataStream.map(element -> {
+            if (!hasFailedOnce.get() && messageCounter.incrementAndGet() == failOnceAtNthElement) {
+                System.out.println("Will fail! messageCounter: " + messageCounter.get());
+                hasFailedOnce.set(true);
+                // Wait more than STREAMING_CHECKPOINTING_INTERVAL to ensure
+                // that at least one checkpoint was created before raising the exception.
+                Thread.sleep(4 * STREAMING_CHECKPOINTING_INTERVAL);
+                throw new Exception(String.format("Mapper was expected to fail after %d elements", failOnceAtNthElement));
+            }
+            return element;
+        });
     }
 
     /**
      * Sets up a DataStream using the provided execution environment and the provided input data.
      *
-     * @param env  stream execution environment
-     * @param data Input data
+     * @param dataStream data stream
      */
-    private void setupDataStream(StreamExecutionEnvironment env, List<SingleColumnTableRow> data) {
-        // Create test stream
-        DataStream<SingleColumnTableRow> theData =
-                env.fromCollection(data)
-                        .name("Test input");
-
+    private void setupSink(DataStream<SingleColumnTableRow> dataStream) {
         String tempDirPrefix = "flink-pinot-connector-test";
         PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter(tempDirPrefix);
@@ -147,7 +243,7 @@ public class PinotSinkTest extends PinotTestBase {
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
         PinotSink<SingleColumnTableRow> sink = new PinotSink.Builder<SingleColumnTableRow>(getPinotHost(), getPinotControllerPort(), TABLE_NAME)
-                .withMaxRowsPerSegment(5)
+                .withMaxRowsPerSegment(MAX_ROWS_PER_SEGMENT)
                 .withTempDirectoryPrefix(tempDirPrefix)
                 .withJsonSerializer(jsonSerializer)
                 .withEventTimeExtractor(eventTimeExtractor)
@@ -157,7 +253,7 @@ public class PinotSinkTest extends PinotTestBase {
                 .build();
 
         // Sink into Pinot
-        theData.sinkTo(sink).name("Pinot sink");
+        dataStream.sinkTo(sink).name("Pinot sink");
     }
 
     /**
@@ -165,46 +261,51 @@ public class PinotSinkTest extends PinotTestBase {
      * the {@link #checkForDataInPinot} method multiple times. This method provides a simple wrapper
      * using linear retry backoff delay.
      *
-     * @param data                  Data to expect in the Pinot table
+     * @param rawData               Data to expect in the Pinot table
      * @param retryTimeoutInSeconds Maximum duration in seconds to wait for the data to arrive
      * @throws InterruptedException
      */
-    private void checkForDataInPinotWithRetry(List<SingleColumnTableRow> data, int retryTimeoutInSeconds) throws InterruptedException {
+    private void checkForDataInPinotWithRetry(List<String> rawData, int retryTimeoutInSeconds) throws InterruptedException, PinotControllerApiException {
         long endTime = System.currentTimeMillis() + 1000L * retryTimeoutInSeconds;
         // Use max 10 retries with linear retry backoff delay
         long retryDelay = 1000L / 10 * retryTimeoutInSeconds;
-        do {
+        while (System.currentTimeMillis() < endTime) {
             try {
-                checkForDataInPinot(data);
+                checkForDataInPinot(rawData);
                 // In case of no error, we can skip further retries
                 return;
             } catch (AssertionFailedError | PinotControllerApiException e) {
                 // In case of an error retry after delay
                 Thread.sleep(retryDelay);
             }
-        } while (System.currentTimeMillis() < endTime);
+        }
+
+        // Finally check for data in Pinot if retryTimeoutInSeconds was exceeded
+        checkForDataInPinot(rawData);
     }
 
     /**
      * Checks whether data is present in the Pinot target table. numElementsToCheck defines the
      * number of elements (from the head of data) to check for existence in the pinot table.
      *
-     * @param data Data to expect in the Pinot table
+     * @param rawData Data to expect in the Pinot table
      * @throws AssertionFailedError        in case the assertion fails
      * @throws PinotControllerApiException in case there aren't any rows in the Pinot table
      */
-    private void checkForDataInPinot(List<SingleColumnTableRow> data) throws AssertionFailedError, PinotControllerApiException {
+    private void checkForDataInPinot(List<String> rawData) throws AssertionFailedError, PinotControllerApiException {
         // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, data.size() + 5);
+        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, rawData.size() + 5);
+
+        Assertions.assertEquals(rawData.size(), resultSet.getRowCount(),
+                String.format("Expected %d elements in Pinot but saw %d", rawData.size(), resultSet.getRowCount()));
 
         // Check output strings
         List<String> output = IntStream.range(0, resultSet.getRowCount())
                 .mapToObj(i -> resultSet.getString(i, 0))
                 .collect(Collectors.toList());
 
-        List<SingleColumnTableRow> dataToCheck = data.stream().limit(100).collect(Collectors.toList());
-        for (SingleColumnTableRow test : dataToCheck) {
-            Assertions.assertTrue(output.contains(test.getCol1()), "Missing " + test.getCol1());
+        for (String test : rawData) {
+            Assertions.assertTrue(output.contains(test), "Missing " + test);
         }
     }
 
@@ -227,6 +328,66 @@ public class PinotSinkTest extends PinotTestBase {
         @Override
         public TimeUnit getSegmentTimeUnit() {
             return TimeUnit.MILLISECONDS;
+        }
+    }
+
+    /**
+     * Simple source that publishes data and finally waits
+     * {@link #STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS} seconds.
+     * Adapted from: https://github.com/apache/flink/blob/9ee91efa94c67f797b39a967af9671a1df3381b4/flink-end-to-end-tests/flink-file-sink-test/src/main/java/FileSinkProgram.java
+     */
+    private static class SimpleStreamingSource implements SourceFunction<SingleColumnTableRow>, CheckpointedFunction {
+
+        private static final int serialVersionUID = 1;
+
+        private final List<String> rawDataValues;
+        private final int sleepDurationMs;
+
+        private int numElementsEmitted = 0;
+
+        private ListState<Integer> state = null;
+
+        SimpleStreamingSource(final List<String> rawDataValues, final int sleepDurationMs) {
+            this.rawDataValues = rawDataValues;
+            Preconditions.checkArgument(sleepDurationMs > 0);
+            this.sleepDurationMs = sleepDurationMs;
+        }
+
+        @Override
+        public void run(final SourceContext<SingleColumnTableRow> ctx) throws InterruptedException {
+            while (numElementsEmitted < rawDataValues.size()) {
+                synchronized (ctx.getCheckpointLock()) {
+                    SingleColumnTableRow element = new SingleColumnTableRow(
+                            rawDataValues.get(numElementsEmitted), System.currentTimeMillis());
+                    ctx.collect(element);
+                    numElementsEmitted++;
+                }
+                Thread.sleep(sleepDurationMs);
+            }
+
+            // We need to sleep here in order to ensure that the previously published elements get
+            // fully processed by Flink.
+            TimeUnit.SECONDS.sleep(STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS);
+        }
+
+        @Override
+        public void cancel() {
+        }
+
+        @Override
+        public void initializeState(FunctionInitializationContext context) throws Exception {
+            state = context.getOperatorStateStore()
+                    .getListState(new ListStateDescriptor<>("state", IntSerializer.INSTANCE));
+
+            for (Integer i : state.get()) {
+                numElementsEmitted += i;
+            }
+        }
+
+        @Override
+        public void snapshotState(FunctionSnapshotContext context) throws Exception {
+            state.clear();
+            state.add(numElementsEmitted);
         }
     }
 }
