@@ -24,7 +24,6 @@ import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.connector.sink.SinkWriter;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -61,7 +60,7 @@ public class PinotSinkTest extends PinotTestBase {
 
     private static final int MAX_ROWS_PER_SEGMENT = 5;
     private static final long STREAMING_CHECKPOINTING_INTERVAL = 50;
-    private static final int DATA_CHECKING_TIMEOUT_SECONDS = 30;
+    private static final int DATA_CHECKING_TIMEOUT_SECONDS = 60;
     private static final AtomicBoolean hasFailedOnce = new AtomicBoolean(false);
     private static CountDownLatch latch;
 
@@ -243,13 +242,13 @@ public class PinotSinkTest extends PinotTestBase {
      */
     private void setupSink(DataStream<SingleColumnTableRow> dataStream) {
         String tempDirPrefix = "flink-pinot-connector-test";
-        PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(TABLE_NAME, "flink-connector");
+        PinotSinkSegmentNameGenerator segmentNameGenerator = new SimpleSegmentNameGenerator(getTableName(), "flink-connector");
         FileSystemAdapter fsAdapter = new LocalFileSystemAdapter(tempDirPrefix);
         JsonSerializer<SingleColumnTableRow> jsonSerializer = new SingleColumnTableRowSerializer();
 
         EventTimeExtractor<SingleColumnTableRow> eventTimeExtractor = new SingleColumnTableRowEventTimeExtractor();
 
-        PinotSink<SingleColumnTableRow> sink = new PinotSink.Builder<SingleColumnTableRow>(getPinotHost(), getPinotControllerPort(), TABLE_NAME)
+        PinotSink<SingleColumnTableRow> sink = new PinotSink.Builder<SingleColumnTableRow>(getPinotHost(), getPinotControllerPort(), getTableName())
                 .withMaxRowsPerSegment(MAX_ROWS_PER_SEGMENT)
                 .withTempDirectoryPrefix(tempDirPrefix)
                 .withJsonSerializer(jsonSerializer)
@@ -300,7 +299,7 @@ public class PinotSinkTest extends PinotTestBase {
      */
     private void checkForDataInPinot(List<String> rawData) throws AssertionFailedError, PinotControllerApiException, PinotClientException {
         // Now get the result from Pinot and verify if everything is there
-        ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, rawData.size() + 5);
+        ResultSet resultSet = pinotHelper.getTableEntries(getTableName(), rawData.size() + 5);
 
         Assertions.assertEquals(rawData.size(), resultSet.getRowCount(),
                 String.format("Expected %d elements in Pinot but saw %d", rawData.size(), resultSet.getRowCount()));

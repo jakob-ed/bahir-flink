@@ -52,8 +52,7 @@ public class PinotTestBase extends TestLogger {
     private static final Integer PINOT_INTERNAL_BROKER_PORT = 8000;
     private static final Integer PINOT_INTERNAL_CONTROLLER_PORT = 9000;
 
-    protected static final TableConfig TABLE_CONFIG = PinotTableConfig.getTableConfig();
-    protected static final String TABLE_NAME = TABLE_CONFIG.getTableName();
+    protected static TableConfig TABLE_CONFIG;
     protected static final Schema TABLE_SCHEMA = PinotTableConfig.getTableSchema();
     protected static PinotTestHelper pinotHelper;
 
@@ -93,6 +92,7 @@ public class PinotTestBase extends TestLogger {
      */
     @BeforeEach
     public void setUp() throws IOException {
+        TABLE_CONFIG = PinotTableConfig.getTableConfig();
         pinotHelper = new PinotTestHelper(getPinotHost(), getPinotControllerPort(), getPinotBrokerPort());
         pinotHelper.createTable(TABLE_CONFIG, TABLE_SCHEMA);
     }
@@ -105,6 +105,15 @@ public class PinotTestBase extends TestLogger {
     @AfterEach
     public void tearDown() throws Exception {
         pinotHelper.deleteTable(TABLE_CONFIG, TABLE_SCHEMA);
+    }
+
+    /**
+     * Returns the current Pinot table name
+     *
+     * @return Pinot table name
+     */
+    protected String getTableName() {
+        return TABLE_CONFIG.getTableName();
     }
 
     /**
@@ -184,7 +193,7 @@ public class PinotTestBase extends TestLogger {
      */
     private static class PinotTableConfig {
 
-        static final String TABLE_NAME = "FLTable";
+        static final String TABLE_NAME_PREFIX = "FLTable";
         static final String SCHEMA_NAME = "FLTableSchema";
 
         private static SegmentsValidationAndRetentionConfig getValidationConfig() {
@@ -212,9 +221,16 @@ public class PinotTestBase extends TestLogger {
             return customConfig;
         }
 
+        private static String generateTableName() {
+            // We want to use a new table name for each test in order to prevent interference
+            // with segments that were pushed in the previous test,
+            // but whose indexing by Pinot was delayed (thus, the previous test must have failed).
+            return String.format("%s_%d", TABLE_NAME_PREFIX, System.currentTimeMillis());
+        }
+
         static TableConfig getTableConfig() {
             return new TableConfig(
-                    TABLE_NAME,
+                    generateTableName(),
                     TableType.OFFLINE.name(),
                     getValidationConfig(),
                     getTenantConfig(),
