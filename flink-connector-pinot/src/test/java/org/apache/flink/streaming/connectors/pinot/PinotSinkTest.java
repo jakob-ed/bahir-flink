@@ -81,7 +81,7 @@ public class PinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testBatchSink() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setRestartStrategy(RestartStrategies.noRestart());
         env.setParallelism(2);
@@ -104,8 +104,7 @@ public class PinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testFailureRecoveryInBatchingSink() throws Exception {
-        final Configuration conf = new Configuration();
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.BATCH);
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 10));
         env.setParallelism(2);
@@ -129,8 +128,7 @@ public class PinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testStreamingSink() throws Exception {
-        final Configuration conf = new Configuration();
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
         env.setRestartStrategy(RestartStrategies.noRestart());
         env.setParallelism(2);
