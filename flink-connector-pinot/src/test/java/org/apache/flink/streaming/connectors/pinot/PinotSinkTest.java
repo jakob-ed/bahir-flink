@@ -86,7 +86,7 @@ public class PinotSinkTest extends PinotTestBase {
         setupSink(dataStream);
 
         // Run
-        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+        env.execute();
 
         // Check for data in Pinot
         checkForDataInPinotWithRetry(rawData, 20);
@@ -111,7 +111,7 @@ public class PinotSinkTest extends PinotTestBase {
         setupSink(dataStream);
 
         // Run
-        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+        env.execute();
 
         // Check for data in Pinot
         checkForDataInPinotWithRetry(rawData, 20);
@@ -136,7 +136,7 @@ public class PinotSinkTest extends PinotTestBase {
         setupSink(dataStream);
 
         // Run
-        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+        env.execute();
 
         // Check for data in Pinot
         checkForDataInPinotWithRetry(rawData, 20);
@@ -163,7 +163,7 @@ public class PinotSinkTest extends PinotTestBase {
         setupSink(dataStream);
 
         // Run
-        MINI_CLUSTER.executeJobBlocking(env.getStreamGraph().getJobGraph());
+        env.execute();
 
         // Check for data in Pinot
         checkForDataInPinotWithRetry(rawData, 20);
