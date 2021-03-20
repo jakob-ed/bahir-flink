@@ -38,6 +38,7 @@ import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
 import org.apache.flink.util.Preconditions;
+import org.apache.pinot.client.PinotClientException;
 import org.apache.pinot.client.ResultSet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,7 @@ import org.opentest4j.AssertionFailedError;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,14 +61,17 @@ public class PinotSinkTest extends PinotTestBase {
 
     private static final int MAX_ROWS_PER_SEGMENT = 5;
     private static final long STREAMING_CHECKPOINTING_INTERVAL = 50;
-    private static final int STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS = 5;
+    private static final int DATA_CHECKING_TIMEOUT_SECONDS = 30;
     private static final AtomicBoolean hasFailedOnce = new AtomicBoolean(false);
+    private static CountDownLatch latch;
 
     @BeforeEach
     public void setUp() throws IOException {
         super.setUp();
         // Reset hasFailedOnce flag used during failure recovery testing before each test.
         hasFailedOnce.set(false);
+        // Reset latch used to keep the generator streaming source up until the test is completed.
+        latch = new CountDownLatch(1);
     }
 
     /**
@@ -89,7 +94,7 @@ public class PinotSinkTest extends PinotTestBase {
         env.execute();
 
         // Check for data in Pinot
-        checkForDataInPinotWithRetry(rawData, 20);
+        checkForDataInPinotWithRetry(rawData);
     }
 
     /**
@@ -114,7 +119,7 @@ public class PinotSinkTest extends PinotTestBase {
         env.execute();
 
         // Check for data in Pinot
-        checkForDataInPinotWithRetry(rawData, 20);
+        checkForDataInPinotWithRetry(rawData);
     }
 
     /**
@@ -135,11 +140,14 @@ public class PinotSinkTest extends PinotTestBase {
         DataStream<SingleColumnTableRow> dataStream = setupStreamingDataSource(env, rawData);
         setupSink(dataStream);
 
-        // Run
-        env.execute();
+        // Start execution of job
+        env.executeAsync();
 
         // Check for data in Pinot
-        checkForDataInPinotWithRetry(rawData, 20);
+        checkForDataInPinotWithRetry(rawData);
+
+        // Generator source can now shut down
+        latch.countDown();
     }
 
     /**
@@ -149,10 +157,9 @@ public class PinotSinkTest extends PinotTestBase {
      */
     @Test
     public void testFailureRecoveryInStreamingSink() throws Exception {
-        final Configuration conf = new Configuration();
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(conf);
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        env.setParallelism(2);
+        env.setParallelism(1);
         env.enableCheckpointing(STREAMING_CHECKPOINTING_INTERVAL);
 
         List<String> rawData = getRawTestData(20);
@@ -162,11 +169,14 @@ public class PinotSinkTest extends PinotTestBase {
         dataStream = setupFailingMapper(dataStream, 12);
         setupSink(dataStream);
 
-        // Run
-        env.execute();
+        // Start execution of job
+        env.executeAsync();
 
         // Check for data in Pinot
-        checkForDataInPinotWithRetry(rawData, 20);
+        checkForDataInPinotWithRetry(rawData);
+
+        // Generator source can now shut down
+        latch.countDown();
     }
 
     /**
@@ -218,7 +228,6 @@ public class PinotSinkTest extends PinotTestBase {
 
         return dataStream.map(element -> {
             if (!hasFailedOnce.get() && messageCounter.incrementAndGet() == failOnceAtNthElement) {
-                System.out.println("Will fail! messageCounter: " + messageCounter.get());
                 hasFailedOnce.set(true);
                 // Wait more than STREAMING_CHECKPOINTING_INTERVAL to ensure
                 // that at least one checkpoint was created before raising the exception.
@@ -261,20 +270,19 @@ public class PinotSinkTest extends PinotTestBase {
      * the {@link #checkForDataInPinot} method multiple times. This method provides a simple wrapper
      * using linear retry backoff delay.
      *
-     * @param rawData               Data to expect in the Pinot table
-     * @param retryTimeoutInSeconds Maximum duration in seconds to wait for the data to arrive
+     * @param rawData Data to expect in the Pinot table
      * @throws InterruptedException
      */
-    private void checkForDataInPinotWithRetry(List<String> rawData, int retryTimeoutInSeconds) throws InterruptedException, PinotControllerApiException {
-        long endTime = System.currentTimeMillis() + 1000L * retryTimeoutInSeconds;
+    private void checkForDataInPinotWithRetry(List<String> rawData) throws InterruptedException, PinotControllerApiException {
+        long endTime = System.currentTimeMillis() + 1000L * DATA_CHECKING_TIMEOUT_SECONDS;
         // Use max 10 retries with linear retry backoff delay
-        long retryDelay = 1000L / 10 * retryTimeoutInSeconds;
+        long retryDelay = 1000L / 10 * DATA_CHECKING_TIMEOUT_SECONDS;
         while (System.currentTimeMillis() < endTime) {
             try {
                 checkForDataInPinot(rawData);
                 // In case of no error, we can skip further retries
                 return;
-            } catch (AssertionFailedError | PinotControllerApiException e) {
+            } catch (AssertionFailedError | PinotControllerApiException | PinotClientException e) {
                 // In case of an error retry after delay
                 Thread.sleep(retryDelay);
             }
@@ -292,7 +300,7 @@ public class PinotSinkTest extends PinotTestBase {
      * @throws AssertionFailedError        in case the assertion fails
      * @throws PinotControllerApiException in case there aren't any rows in the Pinot table
      */
-    private void checkForDataInPinot(List<String> rawData) throws AssertionFailedError, PinotControllerApiException {
+    private void checkForDataInPinot(List<String> rawData) throws AssertionFailedError, PinotControllerApiException, PinotClientException {
         // Now get the result from Pinot and verify if everything is there
         ResultSet resultSet = pinotHelper.getTableEntries(TABLE_NAME, rawData.size() + 5);
 
@@ -332,8 +340,7 @@ public class PinotSinkTest extends PinotTestBase {
     }
 
     /**
-     * Simple source that publishes data and finally waits
-     * {@link #STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS} seconds.
+     * Simple source that publishes data and finally waits for {@link #latch}.
      * Adapted from: https://github.com/apache/flink/blob/9ee91efa94c67f797b39a967af9671a1df3381b4/flink-end-to-end-tests/flink-file-sink-test/src/main/java/FileSinkProgram.java
      */
     private static class SimpleStreamingSource implements SourceFunction<SingleColumnTableRow>, CheckpointedFunction {
@@ -365,9 +372,8 @@ public class PinotSinkTest extends PinotTestBase {
                 Thread.sleep(sleepDurationMs);
             }
 
-            // We need to sleep here in order to ensure that the previously published elements get
-            // fully processed by Flink.
-            TimeUnit.SECONDS.sleep(STREAMING_DATA_SOURCE_FINAL_WAIT_DURATION_SECONDS);
+            // Keep generator source up until the test was completed.
+            latch.await();
         }
 
         @Override

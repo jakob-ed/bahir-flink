@@ -20,18 +20,13 @@ package org.apache.flink.streaming.connectors.pinot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.RestOptions;
-import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.util.TestLogger;
 import org.apache.pinot.spi.config.table.*;
 import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.JsonUtils;
-import org.junit.ClassRule;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
@@ -90,26 +85,6 @@ public class PinotTestBase extends TestLogger {
                             .withStartupTimeout(Duration.ofSeconds(180))
             );
 
-    @ClassRule
-    public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-            new MiniClusterWithClientResource(
-                    new MiniClusterResourceConfiguration.Builder()
-                            .setConfiguration(getConfig())
-                            .setNumberTaskManagers(1)
-                            .setNumberSlotsPerTaskManager(4)
-                            .build());
-
-    /**
-     * Get configuration needed to instantiate the MiniCluster.
-     *
-     * @return Configuration
-     */
-    private static Configuration getConfig() {
-        final Configuration config = new Configuration();
-        config.setString(RestOptions.BIND_PORT, "18081-19000");
-        return config;
-    }
-
     /**
      * Creates a new instance of the {@link PinotTestHelper} using the testcontainer port mappings
      * and creates the test table.
@@ -138,7 +113,7 @@ public class PinotTestBase extends TestLogger {
      * @return Pinot container host
      */
     protected String getPinotHost() {
-        return this.pinot.getHost();
+        return pinot.getHost();
     }
 
 
@@ -148,7 +123,7 @@ public class PinotTestBase extends TestLogger {
      * @return Pinot controller port
      */
     protected String getPinotControllerPort() {
-        return this.pinot.getMappedPort(PINOT_INTERNAL_CONTROLLER_PORT).toString();
+        return pinot.getMappedPort(PINOT_INTERNAL_CONTROLLER_PORT).toString();
     }
 
     /**
@@ -157,7 +132,7 @@ public class PinotTestBase extends TestLogger {
      * @return Pinot broker port
      */
     private String getPinotBrokerPort() {
-        return this.pinot.getMappedPort(PINOT_INTERNAL_BROKER_PORT).toString();
+        return pinot.getMappedPort(PINOT_INTERNAL_BROKER_PORT).toString();
     }
 
     /**
