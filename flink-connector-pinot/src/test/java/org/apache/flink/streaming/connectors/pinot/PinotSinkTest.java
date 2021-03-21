@@ -36,7 +36,6 @@ import org.apache.flink.streaming.connectors.pinot.external.JsonSerializer;
 import org.apache.flink.streaming.connectors.pinot.filesystem.FileSystemAdapter;
 import org.apache.flink.streaming.connectors.pinot.segment.name.PinotSinkSegmentNameGenerator;
 import org.apache.flink.streaming.connectors.pinot.segment.name.SimpleSegmentNameGenerator;
-import org.apache.flink.util.Preconditions;
 import org.apache.pinot.client.PinotClientException;
 import org.apache.pinot.client.ResultSet;
 import org.junit.jupiter.api.Assertions;
@@ -52,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
  * E2e tests for Pinot Sink using BATCH and STREAMING execution mode
@@ -160,10 +161,7 @@ public class PinotSinkTest extends PinotTestBase {
         env.enableCheckpointing(STREAMING_CHECKPOINTING_INTERVAL);
 
         List<String> rawData = getRawTestData(20);
-        DataStream<SingleColumnTableRow> dataStream = setupStreamingDataSource(env, rawData);
-        // With a segment size of MAX_ROWS_PER_SEGMENT = 5 elements and a parallelism of 2,
-        // the failure will be raised once the first 2 segments were committed to Pinot.
-        dataStream = setupFailingMapper(dataStream, 12);
+        DataStream<SingleColumnTableRow> dataStream = setupFailingStreamingDataSource(env, rawData, 12);
         setupSink(dataStream);
 
         // Start execution of job
@@ -195,7 +193,23 @@ public class PinotSinkTest extends PinotTestBase {
      * @return resulting data stream
      */
     private DataStream<SingleColumnTableRow> setupStreamingDataSource(StreamExecutionEnvironment env, List<String> rawDataValues) {
-        SimpleStreamingSource source = new SimpleStreamingSource(rawDataValues, 10);
+        StreamingSource source = new StreamingSource.Builder(rawDataValues, 10).build();
+        return env.addSource(source)
+                .name("Test input");
+    }
+
+    /**
+     * Setup the data source for STREAMING tests.
+     *
+     * @param env                  Stream execution environment
+     * @param rawDataValues        Data values to send
+     * @param failOnceAtNthElement Number of elements to process before raising the exception
+     * @return resulting data stream
+     */
+    private DataStream<SingleColumnTableRow> setupFailingStreamingDataSource(StreamExecutionEnvironment env, List<String> rawDataValues, int failOnceAtNthElement) {
+        StreamingSource source = new StreamingSource.Builder(rawDataValues, 10)
+                .raiseFailureOnce(failOnceAtNthElement)
+                .build();
         return env.addSource(source)
                 .name("Test input");
     }
@@ -226,9 +240,6 @@ public class PinotSinkTest extends PinotTestBase {
         return dataStream.map(element -> {
             if (!hasFailedOnce.get() && messageCounter.incrementAndGet() == failOnceAtNthElement) {
                 hasFailedOnce.set(true);
-                // Wait more than STREAMING_CHECKPOINTING_INTERVAL to ensure
-                // that at least one checkpoint was created before raising the exception.
-                Thread.sleep(4 * STREAMING_CHECKPOINTING_INTERVAL);
                 throw new Exception(String.format("Mapper was expected to fail after %d elements", failOnceAtNthElement));
             }
             return element;
@@ -338,28 +349,43 @@ public class PinotSinkTest extends PinotTestBase {
 
     /**
      * Simple source that publishes data and finally waits for {@link #latch}.
-     * Adapted from: https://github.com/apache/flink/blob/9ee91efa94c67f797b39a967af9671a1df3381b4/flink-end-to-end-tests/flink-file-sink-test/src/main/java/FileSinkProgram.java
+     * By setting {@link #failOnceAtNthElement} > -1, one can define the number of elements to
+     * process before raising an exception. If configured, the exception will only be raised once.
      */
-    private static class SimpleStreamingSource implements SourceFunction<SingleColumnTableRow>, CheckpointedFunction {
+    private static class StreamingSource implements SourceFunction<SingleColumnTableRow>, CheckpointedFunction {
 
         private static final int serialVersionUID = 1;
 
         private final List<String> rawDataValues;
         private final int sleepDurationMs;
+        private final int failOnceAtNthElement;
 
         private int numElementsEmitted = 0;
 
+        private final AtomicBoolean waitingForNextSnapshot;
+        private final AtomicBoolean awaitedSnapshotCreated;
+
         private ListState<Integer> state = null;
 
-        SimpleStreamingSource(final List<String> rawDataValues, final int sleepDurationMs) {
+        private StreamingSource(final List<String> rawDataValues, final int sleepDurationMs, int failOnceAtNthElement) {
             this.rawDataValues = rawDataValues;
-            Preconditions.checkArgument(sleepDurationMs > 0);
+            checkArgument(sleepDurationMs > 0);
             this.sleepDurationMs = sleepDurationMs;
+            checkArgument(failOnceAtNthElement == -1 || failOnceAtNthElement > MAX_ROWS_PER_SEGMENT);
+            this.failOnceAtNthElement = failOnceAtNthElement;
+
+            // Initializes exception raising logic
+            this.waitingForNextSnapshot = new AtomicBoolean(false);
+            this.awaitedSnapshotCreated = new AtomicBoolean(false);
         }
 
         @Override
-        public void run(final SourceContext<SingleColumnTableRow> ctx) throws InterruptedException {
+        public void run(final SourceContext<SingleColumnTableRow> ctx) throws Exception {
             while (numElementsEmitted < rawDataValues.size()) {
+                if (!hasFailedOnce.get() && failOnceAtNthElement == numElementsEmitted) {
+                    failAfterNextSnapshot();
+                }
+
                 synchronized (ctx.getCheckpointLock()) {
                     SingleColumnTableRow element = new SingleColumnTableRow(
                             rawDataValues.get(numElementsEmitted), System.currentTimeMillis());
@@ -371,6 +397,31 @@ public class PinotSinkTest extends PinotTestBase {
 
             // Keep generator source up until the test was completed.
             latch.await();
+        }
+
+        /**
+         * When {@link #failOnceAtNthElement} elements were received, we raise an exception after
+         * the next checkpoint was created. We ensure that at least one segment has been committed
+         * to Pinot by then, as we require {@link #failOnceAtNthElement} to be greater than
+         * {@link #MAX_ROWS_PER_SEGMENT} (at a parallelism of 1). This allows to check whether the
+         * snapshot creation and failure recovery in
+         * {@link org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter} works properly,
+         * respecting the already committed elements and those that are stored in an active
+         * {@link org.apache.flink.streaming.connectors.pinot.writer.PinotWriterSegment} and thus
+         * need to be recovered.
+         *
+         * @throws Exception
+         */
+        private void failAfterNextSnapshot() throws Exception {
+            hasFailedOnce.set(true);
+            waitingForNextSnapshot.set(true);
+
+            // Waiting for the next snapshot ensures that
+            // at least one segment has been committed to Pinot
+            while (!awaitedSnapshotCreated.get()) {
+                Thread.sleep(50);
+            }
+            throw new Exception(String.format("Source was expected to fail after %d elements", failOnceAtNthElement));
         }
 
         @Override
@@ -391,6 +442,33 @@ public class PinotSinkTest extends PinotTestBase {
         public void snapshotState(FunctionSnapshotContext context) throws Exception {
             state.clear();
             state.add(numElementsEmitted);
+
+            // Notify that the awaited snapshot was been created
+            if (waitingForNextSnapshot.get()) {
+                awaitedSnapshotCreated.set(true);
+            }
+        }
+
+        static class Builder {
+            final List<String> rawDataValues;
+            final int sleepDurationMs;
+            int failOnceAtNthElement = -1;
+
+            Builder(List<String> rawDataValues, int sleepDurationMs) {
+                this.rawDataValues = rawDataValues;
+                this.sleepDurationMs = sleepDurationMs;
+            }
+
+            public Builder raiseFailureOnce(int failOnceAtNthElement) {
+                checkArgument(failOnceAtNthElement > MAX_ROWS_PER_SEGMENT,
+                        "failOnceAtNthElement (if set) is required to be larger than the number of elements per segment (MAX_ROWS_PER_SEGMENT).");
+                this.failOnceAtNthElement = failOnceAtNthElement;
+                return this;
+            }
+
+            public StreamingSource build() {
+                return new StreamingSource(rawDataValues, sleepDurationMs, failOnceAtNthElement);
+            }
         }
     }
 }
