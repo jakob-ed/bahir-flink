@@ -407,8 +407,9 @@ public class PinotSinkTest extends PinotTestBase {
          * snapshot creation and failure recovery in
          * {@link org.apache.flink.streaming.connectors.pinot.writer.PinotSinkWriter} works properly,
          * respecting the already committed elements and those that are stored in an active
-         * {@link org.apache.flink.streaming.connectors.pinot.writer.PinotWriterSegment} and thus
-         * need to be recovered.
+         * {@link org.apache.flink.streaming.connectors.pinot.writer.PinotWriterSegment}. Committed
+         * elements must not be saved to the snapshot while those in an active segment must be saved
+         * to the snapshot in order to enable later-on recovery.
          *
          * @throws Exception
          */
